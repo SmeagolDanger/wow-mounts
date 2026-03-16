@@ -94,7 +94,9 @@ async def enrich_mounts_background():
             if (i + 10) % 100 < 10:
                 logger.info(
                     "Enrichment progress: %d/%d (%d icons)",
-                    min(i + 10, len(missing_ids)), len(missing_ids), enriched,
+                    min(i + 10, len(missing_ids)),
+                    len(missing_ids),
+                    enriched,
                 )
             await asyncio.sleep(0.5)
 
@@ -149,8 +151,7 @@ async def get_mount_index(
         if mounts:
             return {
                 "mounts": [
-                    {"id": m.id, "name": m.name, "icon_url": m.icon_url, "source_type": m.source_type}
-                    for m in mounts
+                    {"id": m.id, "name": m.name, "icon_url": m.icon_url, "source_type": m.source_type} for m in mounts
                 ],
                 "total": len(mounts),
                 "cached": True,
@@ -228,8 +229,11 @@ async def search_mounts(
     return {
         "mounts": [
             {
-                "id": m.id, "name": m.name, "description": m.description,
-                "source_type": m.source_type, "icon_url": m.icon_url,
+                "id": m.id,
+                "name": m.name,
+                "description": m.description,
+                "source_type": m.source_type,
+                "icon_url": m.icon_url,
             }
             for m in mounts
         ],
