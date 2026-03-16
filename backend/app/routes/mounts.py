@@ -11,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database import async_session, get_db
 from app.models import CachedMount
+from app.routes.auth import _extract_token
 from app.services.blizzard import blizzard_api
 
-router = APIRouter(prefix="/mounts", tags=["mounts"])
+router = APIRouter(prefix="/mounts", tags=["mounts"], dependencies=[Depends(_extract_token)])
 logger = logging.getLogger(__name__)
 settings = get_settings()
 

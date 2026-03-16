@@ -12,7 +12,7 @@ from app.routes.auth import _extract_token, decode_jwt
 from app.services.blizzard import blizzard_api
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/characters", tags=["characters"])
+router = APIRouter(prefix="/characters", tags=["characters"], dependencies=[Depends(_extract_token)])
 
 
 # ── Public Character Lookup ──────────────────────────────────────────
