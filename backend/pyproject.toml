@@ -24,4 +24,4 @@ ignore = [
 
 [tool.bandit]
 exclude_dirs = ["tests"]
-skips = ["B101"]  # assert used in tests
+skips = ["B101", "B104"]  # B101: assert in tests, B104: 0.0.0.0 bind is intentional in Docker

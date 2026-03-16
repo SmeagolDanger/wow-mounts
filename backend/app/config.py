@@ -23,7 +23,7 @@ class Settings:
 
     # App security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
-    API_HOST: str = os.getenv("API_HOST", "0.0.0.0")  # noqa: S104
+    API_HOST: str = os.getenv("API_HOST", "0.0.0.0")  # noqa: S104  # nosec B104
     API_PORT: int = int(os.getenv("API_PORT", "8000"))
     CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "").split(",")
 
