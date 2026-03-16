@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import FavoriteCharacter
-from app.routes.auth import decode_jwt
+from app.routes.auth import _extract_token, decode_jwt
 from app.services.blizzard import blizzard_api
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ async def get_realms():
 
 @router.get("/favorites")
 async def get_favorites(
-    token: str = Query(...),
+    token: str = Depends(_extract_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Get user's favorite characters."""
@@ -116,7 +116,7 @@ async def get_favorites(
 
 @router.post("/favorites")
 async def add_favorite(
-    token: str = Query(...),
+    token: str = Depends(_extract_token),
     realm_slug: str = Query(...),
     character_name: str = Query(...),
     region: str = Query("us"),
@@ -179,7 +179,7 @@ async def add_favorite(
 @router.delete("/favorites/{char_id}")
 async def remove_favorite(
     char_id: int,
-    token: str = Query(...),
+    token: str = Depends(_extract_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove a character from favorites."""

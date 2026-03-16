@@ -46,12 +46,16 @@ async def _enrich_mount(mount_id: int, db: AsyncSession) -> str | None:
             except Exception:
                 logger.debug("Creature media unavailable for mount %s", mount_id)
 
+    data["icon_url"] = icon_url
+    data["creature_display_id"] = creature_display_id
+
     result = await db.execute(select(CachedMount).where(CachedMount.id == mount_id))
     cached = result.scalar_one_or_none()
     if cached:
         cached.description = data.get("description", cached.description)
         source = data.get("source", {})
-        cached.source_type = source.get("type") if source else cached.source_type
+        raw_type = source.get("type") if source else None
+        cached.source_type = raw_type.lower() if raw_type else cached.source_type
         cached.icon_url = icon_url
         cached.creature_display_id = creature_display_id
         cached.raw_data = data
@@ -280,7 +284,8 @@ async def get_mount_detail(mount_id: int, db: AsyncSession = Depends(get_db)):
     data["icon_url"] = icon_url
     data["creature_display_id"] = creature_display_id
 
-    source_type = data.get("source", {}).get("type") if data.get("source") else None
+    raw_source_type = data.get("source", {}).get("type") if data.get("source") else None
+    source_type = raw_source_type.lower() if raw_source_type else None
     faction_data = data.get("faction", {})
     faction = faction_data.get("type", "").lower() if faction_data else None
 
@@ -298,7 +303,7 @@ async def get_mount_detail(mount_id: int, db: AsyncSession = Depends(get_db)):
             id=mount_id,
             name=data.get("name", "Unknown"),
             description=data.get("description"),
-            source_type=source_type,
+            source_type=source_type,  # already lowercased above
             faction=faction,
             icon_url=icon_url,
             creature_display_id=creature_display_id,

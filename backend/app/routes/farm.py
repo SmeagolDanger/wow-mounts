@@ -2,14 +2,14 @@
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import FarmTask
-from app.routes.auth import decode_jwt
+from app.routes.auth import _extract_token, decode_jwt
 
 router = APIRouter(prefix="/farm", tags=["farm"])
 
@@ -76,7 +76,7 @@ def _should_reset(task: FarmTask) -> bool:
 
 @router.get("/")
 async def get_farm_tasks(
-    token: str = Query(...),
+    token: str = Depends(_extract_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all farm tasks for the user, auto-resetting completed ones past their reset window."""
@@ -129,7 +129,7 @@ async def get_farm_tasks(
 
 @router.post("/")
 async def create_farm_task(
-    token: str = Query(...),
+    token: str = Depends(_extract_token),
     task: FarmTaskCreate = Body(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -158,7 +158,7 @@ async def create_farm_task(
 @router.patch("/{task_id}/complete")
 async def toggle_complete(
     task_id: int,
-    token: str = Query(...),
+    token: str = Depends(_extract_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Toggle a farm task's completion status."""
@@ -180,7 +180,7 @@ async def toggle_complete(
 @router.put("/{task_id}")
 async def update_farm_task(
     task_id: int,
-    token: str = Query(...),
+    token: str = Depends(_extract_token),
     data: FarmTaskUpdate = Body(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -203,7 +203,7 @@ async def update_farm_task(
 @router.delete("/{task_id}")
 async def delete_farm_task(
     task_id: int,
-    token: str = Query(...),
+    token: str = Depends(_extract_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a farm task."""

@@ -67,7 +67,7 @@ export default function MountDetailModal({ mountId, visible, onClose, onAddToFar
   if (!visible) return null;
 
   const icon = detail?.icon_url;
-  const sourceType = detail?.source?.type;
+  const sourceType = detail?.source?.type?.toLowerCase();
   const sourceColor = sourceType ? (colors.source[sourceType] || colors.text.secondary) : colors.text.secondary;
   const faction = detail?.faction?.name;
 
