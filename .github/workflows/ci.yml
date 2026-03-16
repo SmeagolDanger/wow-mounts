@@ -8,9 +8,12 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 env:
   PYTHON_VERSION: "3.12"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/wow-mount-tracker-api
 
 jobs:
   # ── Backend Lint & Security ──────────────────────────────────────
@@ -59,9 +62,9 @@ jobs:
           path: backend/bandit-report.json
           retention-days: 30
 
-  # ── Docker Build Verification ────────────────────────────────────
+  # ── Build & Push to GHCR ─────────────────────────────────────────
   build:
-    name: Build Docker Image
+    name: Build & Push Docker Image
     runs-on: ubuntu-latest
     needs: backend-lint
 
@@ -71,30 +74,46 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build API image
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: ./backend
-          push: false
-          load: true 
-          tags: wow-mount-tracker-api:${{ github.sha }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Only verify on PRs (image is loaded locally)
       - name: Verify image runs
+        if: github.event_name == 'pull_request'
         run: |
+          IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
           docker run --rm -d \
             --name test-api \
             -e APP_ENV=development \
             -p 8000:8000 \
-            wow-mount-tracker-api:${{ github.sha }}
+            "$IMAGE"
 
-          # Wait for startup
           sleep 5
-
-          # Health check
           curl -f http://localhost:8000/api/health || (docker logs test-api && exit 1)
-
           docker stop test-api
 
   # ── Docker Compose Validation ────────────────────────────────────
@@ -120,3 +139,4 @@ jobs:
           SECRET_KEY: test-secret-key-at-least-32-characters-long
           CORS_ORIGINS: http://localhost
           RATE_LIMIT_PER_MINUTE: "60"
+          IMAGE_TAG: latest

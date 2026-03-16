@@ -7,6 +7,11 @@ on:
         description: 'Type "deploy" to confirm production deployment'
         required: true
         type: string
+      image_tag:
+        description: "Image tag to deploy (default: latest)"
+        required: false
+        default: "latest"
+        type: string
 
 permissions:
   contents: read
@@ -37,8 +42,6 @@ jobs:
     environment: production
 
     steps:
-      - uses: actions/checkout@v4
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -49,19 +52,15 @@ jobs:
           script: |
             set -euo pipefail
 
-            cd ${{ secrets.DEPLOY_PATH || '~/wow-mount-tracker' }}
+            cd ${{ secrets.DEPLOY_PATH || '~/wow-mounts' }}
 
-            echo "==> Pulling latest code..."
-            git fetch origin main
-            git reset --hard origin/main
+            echo "==> Logging in to GHCR..."
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
-            echo "==> Building images..."
-            docker compose -f docker-compose.prod.yml build --no-cache
+            echo "==> Pulling latest image..."
+            docker compose -f docker-compose.prod.yml --env-file .env.prod pull api
 
-            echo "==> Stopping old containers..."
-            docker compose -f docker-compose.prod.yml down --timeout 30
-
-            echo "==> Starting new containers..."
+            echo "==> Restarting services..."
             docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 
             echo "==> Waiting for health check..."

@@ -1,28 +1,29 @@
 # docker-compose.prod.yml
-# Usage: docker compose -f docker-compose.prod.yml up -d
 #
-# Requires .env.prod with all secrets populated.
-# DB is internal-only (no exposed port).
-# API listens on 81 — proxy to it from nginx/caddy.
+# Pulls API image from GitHub Container Registry.
+# All secrets loaded from .env.prod via env_file.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# First time on a new host:
+#   echo $GHCR_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USER --password-stdin
 
 services:
   api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: wow-mount-tracker-api:latest
+    image: ghcr.io/${GHCR_OWNER:-your-github-user}/wow-mount-tracker-api:${IMAGE_TAG:-latest}
     ports:
       - "127.0.0.1:81:8000"
     environment:
-      - APP_ENV=production
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - BNET_CLIENT_ID=${BNET_CLIENT_ID}
-      - BNET_CLIENT_SECRET=${BNET_CLIENT_SECRET}
-      - BNET_REGION=${BNET_REGION:-us}
-      - BNET_REDIRECT_URI=${BNET_REDIRECT_URI}
-      - SECRET_KEY=${SECRET_KEY}
-      - CORS_ORIGINS=${CORS_ORIGINS}
-      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
+      APP_ENV: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      BNET_CLIENT_ID: ${BNET_CLIENT_ID}
+      BNET_CLIENT_SECRET: ${BNET_CLIENT_SECRET}
+      BNET_REGION: ${BNET_REGION:-us}
+      BNET_REDIRECT_URI: ${BNET_REDIRECT_URI}
+      SECRET_KEY: ${SECRET_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
     depends_on:
       db:
         condition: service_healthy
@@ -54,7 +55,6 @@ services:
 
   db:
     image: postgres:16-alpine
-    # No ports exposed — internal only
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}

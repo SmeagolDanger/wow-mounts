@@ -76,8 +76,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if settings.is_production:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         # Strip server header
-        if "server" in response.headers:
-            del response.headers["server"]
+        response.headers.pop("server", None)
         return response
 
 
