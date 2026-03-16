@@ -78,14 +78,14 @@ def _validate_device_id(device_id: str) -> str:
     return device_id
 
 
-def _create_oauth_state(device_id: str | None = None) -> str:
+def _create_oauth_state(device_id: str | None = None, app_redirect: str | None = None) -> str:
     """Create a signed, short-lived JWT to use as the OAuth state parameter.
-    Encodes the device_id so we can link accounts on callback.
-    Expires in 10 minutes — plenty for a login flow.
+    Encodes the device_id and app_redirect so we can use them on callback.
     """
     payload = {
         "purpose": "oauth_state",
         "device_id": device_id,
+        "app_redirect": app_redirect,
         "iat": datetime.now(UTC),
         "exp": datetime.now(UTC) + timedelta(minutes=10),
     }
@@ -188,14 +188,17 @@ async def device_auth(device_id: str = Query(...), db: AsyncSession = Depends(ge
 
 
 @router.get("/bnet/login")
-async def bnet_login(device_id: str | None = Query(None)):
+async def bnet_login(
+    device_id: str | None = Query(None),
+    app_redirect: str | None = Query(None),
+):
     """Return Battle.net OAuth authorize URL.
-    Pass device_id to link the Battle.net account to an existing anonymous user.
+    Pass device_id to link accounts, app_redirect for deep link back to the app.
     """
     if device_id:
         device_id = _validate_device_id(device_id)
 
-    state = _create_oauth_state(device_id)
+    state = _create_oauth_state(device_id, app_redirect)
     url = blizzard_api.get_authorize_url(state)
     return {"authorize_url": url, "state": state}
 
@@ -222,8 +225,15 @@ async def bnet_callback(
         deep_link = _build_error_deep_link("Missing code or state parameter")
         return HTMLResponse(_build_fallback_html(deep_link, ""))
 
-    # Verify state (CSRF protection + device_id recovery)
+    # Verify state (CSRF protection + device_id + app_redirect recovery)
     device_id = _verify_oauth_state(state)
+
+    # Extract app_redirect from state JWT for Expo Go support
+    try:
+        state_payload = jwt.decode(state, settings.SECRET_KEY, algorithms=["HS256"])
+        app_redirect_base = state_payload.get("app_redirect")
+    except Exception:
+        app_redirect_base = None
 
     # Exchange code for access token
     try:
@@ -280,15 +290,13 @@ async def bnet_callback(
 
     app_token = create_jwt(user.id, battletag)
 
-    # Redirect to the Expo app via deep link
-    deep_link = _build_deep_link(
-        "auth/callback",
-        {
-            "token": app_token,
-            "battletag": battletag,
-            "user_id": str(user.id),
-        },
-    )
+    # Build deep link — use app_redirect from state if available (Expo Go uses exp:// scheme)
+    link_params = {"token": app_token, "battletag": battletag, "user_id": str(user.id)}
+    if app_redirect_base:
+        separator = "&" if "?" in app_redirect_base else "?"
+        deep_link = f"{app_redirect_base}{separator}{urlencode(link_params)}"
+    else:
+        deep_link = _build_deep_link("auth/callback", link_params)
 
     logger.info("OAuth complete for %s (user %d), redirecting to app", battletag, user.id)
 
