@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Environment — NEVER commit these
+.env
+.env.local
+.env.prod
+.env.production
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+pgdata/
+
+# Build
+*.egg-info/
+build/
+
+# CI artifacts
+bandit-report.json
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/

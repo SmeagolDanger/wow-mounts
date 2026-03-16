@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "WoW Mount Tracker",
+    "slug": "wow-mount-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "wowmounts",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0A0C10",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wowmounts.tracker",
+      "backgroundColor": "#0A0C10"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0C10"
+      },
+      "package": "com.wowmounts.tracker"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

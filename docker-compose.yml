@@ -1,0 +1,39 @@
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://wowmounts:wowmounts@db:5432/wowmounts
+      - BNET_CLIENT_ID=${BNET_CLIENT_ID}
+      - BNET_CLIENT_SECRET=${BNET_CLIENT_SECRET}
+      - BNET_REGION=${BNET_REGION:-us}
+      - BNET_REDIRECT_URI=${BNET_REDIRECT_URI:-http://localhost:8081/auth/callback}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - CORS_ORIGINS=*
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: wowmounts
+      POSTGRES_USER: wowmounts
+      POSTGRES_PASSWORD: wowmounts
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wowmounts"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
