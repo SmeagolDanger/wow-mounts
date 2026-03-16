@@ -30,7 +30,11 @@ class ApiService {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
     const res = await fetch(url.toString(), { ...options, headers: { ...headers, ...options.headers } });
-    if (!res.ok) { const err = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(err.detail || `API error ${res.status}`); }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      const msg = typeof err?.detail === 'string' ? err.detail : typeof err === 'string' ? err : `API error ${res.status}`;
+      throw new Error(msg);
+    }
     return res.json();
   }
 

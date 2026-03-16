@@ -8,6 +8,7 @@ import {
   TextInput, Modal, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii, shadows } from '../../theme';
 import Card from '../../components/Card';
@@ -32,6 +33,7 @@ export default function FarmScreen() {
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await loadTasks(); setRefreshing(false); }, [loadTasks]);
   useEffect(() => { loadTasks(); }, [loadTasks]);
+  useFocusEffect(useCallback(() => { loadTasks(); }, [loadTasks]));
 
   // Countdown
   useEffect(() => {
