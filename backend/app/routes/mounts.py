@@ -44,7 +44,7 @@ async def _enrich_mount(mount_id: int, db: AsyncSession) -> str | None:
                 if not icon_url and assets:
                     icon_url = assets[0].get("value")
             except Exception:
-                pass
+                logger.debug("Creature media unavailable for mount %s", mount_id)
 
     result = await db.execute(select(CachedMount).where(CachedMount.id == mount_id))
     cached = result.scalar_one_or_none()
@@ -92,7 +92,10 @@ async def enrich_mounts_background():
                 await db.commit()
 
             if (i + 10) % 100 < 10:
-                logger.info("Enrichment progress: %d/%d (%d icons)", min(i + 10, len(missing_ids)), len(missing_ids), enriched)
+                logger.info(
+                    "Enrichment progress: %d/%d (%d icons)",
+                    min(i + 10, len(missing_ids)), len(missing_ids), enriched,
+                )
             await asyncio.sleep(0.5)
 
         logger.info("Mount enrichment complete: %d/%d icons found", enriched, len(missing_ids))
@@ -224,7 +227,10 @@ async def search_mounts(
     mounts = result.scalars().all()
     return {
         "mounts": [
-            {"id": m.id, "name": m.name, "description": m.description, "source_type": m.source_type, "icon_url": m.icon_url}
+            {
+                "id": m.id, "name": m.name, "description": m.description,
+                "source_type": m.source_type, "icon_url": m.icon_url,
+            }
             for m in mounts
         ],
         "total": len(mounts),

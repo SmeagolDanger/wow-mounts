@@ -9,7 +9,6 @@ import {
   Animated, PanResponder, Dimensions, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { colors, spacing, typography, radii, shadows } from '../theme';
 import api from '../services/api';
 
