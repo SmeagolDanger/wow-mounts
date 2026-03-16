@@ -33,7 +33,7 @@ class Settings:
 
     # Cache TTLs (seconds)
     MOUNT_INDEX_TTL: int = 86400  # 24h — mount list rarely changes
-    CHARACTER_TTL: int = 3600     # 1h for character collections
+    CHARACTER_TTL: int = 3600  # 1h for character collections
     MOUNT_DETAIL_TTL: int = 604800  # 7 days for individual mount details
 
     def __init__(self):

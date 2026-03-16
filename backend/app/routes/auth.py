@@ -24,6 +24,7 @@ DEVICE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{8,128}$")
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
+
 def create_jwt(user_id: int, battletag: str = None) -> str:
     payload = {
         "sub": str(user_id),
@@ -63,6 +64,7 @@ def _validate_device_id(device_id: str) -> str:
 
 # ── Device Auth (no Battle.net required) ─────────────────────────────
 
+
 @router.post("/device")
 async def device_auth(device_id: str = Query(...), db: AsyncSession = Depends(get_db)):
     """Register or login with a device ID (anonymous, no Battle.net needed)."""
@@ -82,6 +84,7 @@ async def device_auth(device_id: str = Query(...), db: AsyncSession = Depends(ge
 
 
 # ── Battle.net OAuth ─────────────────────────────────────────────────
+
 
 @router.get("/bnet/login")
 async def bnet_login():
@@ -132,8 +135,10 @@ async def bnet_callback(
             user.bnet_access_token = access_token
         else:
             user = User(
-                bnet_id=bnet_id, battletag=battletag,
-                bnet_access_token=access_token, device_id=device_id,
+                bnet_id=bnet_id,
+                battletag=battletag,
+                bnet_access_token=access_token,
+                device_id=device_id,
             )
             db.add(user)
     else:
@@ -148,6 +153,7 @@ async def bnet_callback(
 
 
 # ── User Info ────────────────────────────────────────────────────────
+
 
 @router.get("/me")
 async def get_me(

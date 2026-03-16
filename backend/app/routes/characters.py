@@ -14,6 +14,7 @@ router = APIRouter(prefix="/characters", tags=["characters"])
 
 # ── Public Character Lookup ──────────────────────────────────────────
 
+
 @router.get("/lookup")
 async def lookup_character(
     realm: str = Query(..., description="Realm slug, e.g. 'area-52'"),
@@ -68,17 +69,13 @@ async def get_realms():
     try:
         data = await blizzard_api.get_realm_index()
         realms = data.get("realms", [])
-        return {
-            "realms": [
-                {"id": r.get("id"), "name": r.get("name"), "slug": r.get("slug")}
-                for r in realms
-            ]
-        }
+        return {"realms": [{"id": r.get("id"), "name": r.get("name"), "slug": r.get("slug")} for r in realms]}
     except Exception as e:
         raise HTTPException(502, f"Failed to fetch realms: {e}")
 
 
 # ── Favorites (requires auth) ───────────────────────────────────────
+
 
 @router.get("/favorites")
 async def get_favorites(
@@ -155,9 +152,7 @@ async def add_favorite(
         pass
 
     # Check if this is the first character (make it primary)
-    result = await db.execute(
-        select(FavoriteCharacter).where(FavoriteCharacter.user_id == user_id)
-    )
+    result = await db.execute(select(FavoriteCharacter).where(FavoriteCharacter.user_id == user_id))
     is_first = result.scalar_one_or_none() is None
 
     fav = FavoriteCharacter(

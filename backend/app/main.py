@@ -25,6 +25,7 @@ settings = get_settings()
 
 # ── Rate Limiting Middleware ─────────────────────────────────────────
 
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Simple in-memory per-IP rate limiter."""
 
@@ -64,6 +65,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 # ── Security Headers Middleware ──────────────────────────────────────
 
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -80,6 +82,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 # ── App Setup ────────────────────────────────────────────────────────
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

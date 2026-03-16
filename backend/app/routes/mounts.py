@@ -58,9 +58,15 @@ async def get_mount_index(db: AsyncSession = Depends(get_db)):
         if mounts:
             return {
                 "mounts": [
-                    {"id": m.id, "name": m.name, "description": m.description,
-                     "source_type": m.source_type, "faction": m.faction,
-                     "icon_url": m.icon_url, "creature_display_id": m.creature_display_id}
+                    {
+                        "id": m.id,
+                        "name": m.name,
+                        "description": m.description,
+                        "source_type": m.source_type,
+                        "faction": m.faction,
+                        "icon_url": m.icon_url,
+                        "creature_display_id": m.creature_display_id,
+                    }
                     for m in mounts
                 ],
                 "total": len(mounts),
@@ -100,16 +106,18 @@ async def search_mounts(
 ):
     """Search mounts by name."""
     result = await db.execute(
-        select(CachedMount)
-        .where(CachedMount.name.ilike(f"%{q}%"))
-        .order_by(CachedMount.name)
-        .limit(50)
+        select(CachedMount).where(CachedMount.name.ilike(f"%{q}%")).order_by(CachedMount.name).limit(50)
     )
     mounts = result.scalars().all()
     return {
         "mounts": [
-            {"id": m.id, "name": m.name, "description": m.description,
-             "source_type": m.source_type, "icon_url": m.icon_url}
+            {
+                "id": m.id,
+                "name": m.name,
+                "description": m.description,
+                "source_type": m.source_type,
+                "icon_url": m.icon_url,
+            }
             for m in mounts
         ],
         "total": len(mounts),
