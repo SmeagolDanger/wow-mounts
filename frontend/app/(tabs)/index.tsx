@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii, shadows } from '../../theme';
 import { SearchBar, MountCard, ProgressRing, MountDetailModal, Card } from '../../components';
 import api, { MountSummary, FavChar, WowChar } from '../../services/api';
+import { useApp } from '../../contexts/AppContext';
 
 const { width: SW } = Dimensions.get('window');
 const GAP = spacing.sm;
@@ -16,11 +17,10 @@ const COL = (SW - PAD * 2 - GAP * 2) / 3;
 
 type Filter = 'all' | 'collected' | 'missing';
 
-interface SelectedChar { realm_slug: string; character_name: string; display: string; avatar_url?: string | null; }
-
 export default function CollectionScreen() {
+  const { selectedChar, collectedIds, loadingCollected, selectCharacter, clearCharacter } = useApp();
+
   const [mounts, setMounts] = useState<MountSummary[]>([]);
-  const [collectedIds, setCollectedIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
@@ -29,13 +29,11 @@ export default function CollectionScreen() {
   const [selected, setSelected] = useState<number | null>(null);
   const [iconCache, setIconCache] = useState<Record<number, string | null>>({});
 
-  // Character picker state
+  // Character picker
   const [charPickerVisible, setCharPickerVisible] = useState(false);
-  const [selectedChar, setSelectedChar] = useState<SelectedChar | null>(null);
   const [myChars, setMyChars] = useState<WowChar[]>([]);
   const [favorites, setFavorites] = useState<FavChar[]>([]);
   const [hasBnet, setHasBnet] = useState(false);
-  const [loadingChar, setLoadingChar] = useState(false);
   const [loadingPicker, setLoadingPicker] = useState(false);
 
   const iconQ = useRef<Set<number>>(new Set());
@@ -70,53 +68,21 @@ export default function CollectionScreen() {
     finally { setLoading(false); }
   }, []);
 
-  const loadPickerData = useCallback(async () => {
+  const openPicker = useCallback(async () => {
+    setCharPickerVisible(true);
     setLoadingPicker(true);
     try {
       const [charsRes, favsRes] = await Promise.allSettled([
         api.getMyCharacters(),
         api.getFavorites(),
       ]);
-      if (charsRes.status === 'fulfilled') {
-        setMyChars(charsRes.value.characters);
-        setHasBnet(charsRes.value.has_bnet);
-      }
-      if (favsRes.status === 'fulfilled') {
-        setFavorites(favsRes.value.characters);
-      }
+      if (charsRes.status === 'fulfilled') { setMyChars(charsRes.value.characters); setHasBnet(charsRes.value.has_bnet); }
+      if (favsRes.status === 'fulfilled') setFavorites(favsRes.value.characters);
     } catch {} finally { setLoadingPicker(false); }
   }, []);
 
-  const openPicker = useCallback(() => {
-    setCharPickerVisible(true);
-    loadPickerData();
-  }, [loadPickerData]);
-
   const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
-
   useEffect(() => { load(); }, [load]);
-
-  const selectCharacter = useCallback(async (char: SelectedChar) => {
-    setCharPickerVisible(false);
-    setLoadingChar(true);
-    // Normalize name to lowercase for lookups
-    const normalized = { ...char, character_name: char.character_name.toLowerCase() };
-    setSelectedChar(normalized);
-    try {
-      const data = await api.lookupCharacter(normalized.realm_slug, normalized.character_name);
-      const ids = new Set<number>((data.mounts || []).map((m: any) => m.mount.id));
-      setCollectedIds(ids);
-    } catch {
-      setCollectedIds(new Set());
-    } finally {
-      setLoadingChar(false);
-    }
-  }, []);
-
-  const clearCharacter = useCallback(() => {
-    setSelectedChar(null);
-    setCollectedIds(new Set());
-  }, []);
 
   const filtered = useMemo(() => {
     let r = mounts;
@@ -128,9 +94,7 @@ export default function CollectionScreen() {
   }, [mounts, search, filter, srcFilter, collectedIds]);
 
   const srcTypes = useMemo(() => {
-    const s = new Set<string>();
-    mounts.forEach(m => m.source_type && s.add(m.source_type));
-    return Array.from(s).sort();
+    const s = new Set<string>(); mounts.forEach(m => m.source_type && s.add(m.source_type)); return Array.from(s).sort();
   }, [mounts]);
 
   const addToFarm = useCallback(async (m: { id: number; name: string; source_type?: string }) => {
@@ -166,25 +130,16 @@ export default function CollectionScreen() {
   return (
     <SafeAreaView style={z.safe} edges={['top']}>
       <FlatList
-        data={filtered}
-        renderItem={renderMount}
-        keyExtractor={i => String(i.id)}
-        numColumns={3}
-        columnWrapperStyle={z.row}
-        contentContainerStyle={z.list}
-        onViewableItemsChanged={onView}
-        viewabilityConfig={viewCfg}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-            tintColor={colors.gold.primary} progressBackgroundColor={colors.bg.secondary} />
-        }
+        data={filtered} renderItem={renderMount} keyExtractor={i => String(i.id)}
+        numColumns={3} columnWrapperStyle={z.row} contentContainerStyle={z.list}
+        onViewableItemsChanged={onView} viewabilityConfig={viewCfg}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold.primary} progressBackgroundColor={colors.bg.secondary} />}
         ListHeaderComponent={
           <View style={z.hdr}>
             <View style={z.titleRow}>
               <Text style={z.title}>Mounts</Text>
-              {/* Character picker button */}
               <Pressable onPress={openPicker} style={[z.charBtn, selectedChar && z.charBtnActive]}>
-                {loadingChar
+                {loadingCollected
                   ? <ActivityIndicator size="small" color={colors.gold.primary} />
                   : selectedChar
                     ? <>
@@ -203,7 +158,6 @@ export default function CollectionScreen() {
               </Pressable>
             </View>
 
-            {/* Progress card — only show when character selected */}
             {selectedChar && (
               <Card variant="gold" style={z.progCard}>
                 <View style={z.progRow}>
@@ -232,14 +186,12 @@ export default function CollectionScreen() {
               ))}
               <View style={z.chipDiv} />
               {srcTypes.map(s => (
-                <Pressable key={s} onPress={() => setSrcFilter(srcFilter === s ? null : s)}
-                  style={[z.chip, srcFilter === s && z.chipA]}>
+                <Pressable key={s} onPress={() => setSrcFilter(srcFilter === s ? null : s)} style={[z.chip, srcFilter === s && z.chipA]}>
                   <View style={[z.srcDot, { backgroundColor: colors.source[s] || colors.text.tertiary }]} />
                   <Text style={[z.chipT, srcFilter === s && z.chipTA]}>{s.replace('_', ' ')}</Text>
                 </Pressable>
               ))}
             </ScrollView>
-
             <Text style={z.cnt}>{filtered.length} mount{filtered.length !== 1 ? 's' : ''}</Text>
           </View>
         }
@@ -251,10 +203,9 @@ export default function CollectionScreen() {
         }
       />
 
-      <MountDetailModal mountId={selected} visible={selected !== null}
-        onClose={() => setSelected(null)} onAddToFarm={addToFarm} />
+      <MountDetailModal mountId={selected} visible={selected !== null} onClose={() => setSelected(null)} onAddToFarm={addToFarm} />
 
-      {/* Character picker modal */}
+      {/* Character picker */}
       <Modal visible={charPickerVisible} animationType="slide" transparent onRequestClose={() => setCharPickerVisible(false)}>
         <View style={z.pickerBackdrop}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCharPickerVisible(false)} />
@@ -266,15 +217,12 @@ export default function CollectionScreen() {
                 <Ionicons name="close" size={20} color={colors.text.secondary} />
               </Pressable>
             </View>
-            <Text style={z.pickerSub}>Pick a character to track their mount collection</Text>
+            <Text style={z.pickerSub}>Track mount collection progress for a character</Text>
 
             {loadingPicker ? (
-              <View style={z.pickerLoading}>
-                <ActivityIndicator size="large" color={colors.gold.primary} />
-              </View>
+              <View style={z.pickerLoading}><ActivityIndicator size="large" color={colors.gold.primary} /></View>
             ) : (
               <ScrollView style={z.pickerList} showsVerticalScrollIndicator={false}>
-                {/* Clear selection */}
                 {selectedChar && (
                   <Pressable onPress={() => { clearCharacter(); setCharPickerVisible(false); }} style={z.pickerClear}>
                     <Ionicons name="grid-outline" size={18} color={colors.text.secondary} />
@@ -282,19 +230,15 @@ export default function CollectionScreen() {
                   </Pressable>
                 )}
 
-                {/* Battle.net characters (auto-loaded when signed in) */}
                 {myChars.length > 0 && (
                   <>
                     <Text style={z.pickerSection}>YOUR CHARACTERS</Text>
                     {myChars.map(char => {
                       const isActive = selectedChar?.character_name === char.name?.toLowerCase() && selectedChar?.realm_slug === char.realm_slug;
-
                       return (
-                        <Pressable key={`${char.realm_slug}-${char.name}`} onPress={() => selectCharacter({
-                          realm_slug: char.realm_slug,
-                          character_name: char.name,
-                          display: `${char.name}-${char.realm_slug}`,
-                        })} style={[z.favRow, isActive && z.favRowActive]}>
+                        <Pressable key={`${char.realm_slug}-${char.name}`}
+                          onPress={() => { selectCharacter({ realm_slug: char.realm_slug, character_name: char.name, display: `${char.name}-${char.realm_slug}` }); setCharPickerVisible(false); }}
+                          style={[z.favRow, isActive && z.favRowActive]}>
                           <View style={[z.favAvatar, z.favAvatarPh]}>
                             <Ionicons name="person" size={16} color={colors.classColor[char.class_name] || colors.text.tertiary} />
                           </View>
@@ -312,19 +256,15 @@ export default function CollectionScreen() {
                   </>
                 )}
 
-                {/* Favorites */}
                 {favorites.length > 0 && (
                   <>
                     <Text style={z.pickerSection}>{myChars.length > 0 ? 'FAVORITES' : 'FAVORITE CHARACTERS'}</Text>
                     {favorites.map(fav => {
                       const isActive = selectedChar?.character_name === fav.character_name && selectedChar?.realm_slug === fav.realm_slug;
                       return (
-                        <Pressable key={fav.id} onPress={() => selectCharacter({
-                          realm_slug: fav.realm_slug,
-                          character_name: fav.character_name,
-                          display: `${fav.character_name}-${fav.realm_slug}`,
-                          avatar_url: fav.avatar_url,
-                        })} style={[z.favRow, isActive && z.favRowActive]}>
+                        <Pressable key={fav.id}
+                          onPress={() => { selectCharacter({ realm_slug: fav.realm_slug, character_name: fav.character_name, display: `${fav.character_name}-${fav.realm_slug}`, avatar_url: fav.avatar_url }); setCharPickerVisible(false); }}
+                          style={[z.favRow, isActive && z.favRowActive]}>
                           {fav.avatar_url
                             ? <Image source={{ uri: fav.avatar_url }} style={z.favAvatar} />
                             : <View style={[z.favAvatar, z.favAvatarPh]}><Ionicons name="person" size={16} color={colors.text.tertiary} /></View>
@@ -344,18 +284,11 @@ export default function CollectionScreen() {
                   </>
                 )}
 
-                {/* Empty state */}
-                {myChars.length === 0 && favorites.length === 0 && (
+                {myChars.length === 0 && favorites.length === 0 && !loadingPicker && (
                   <View style={z.pickerEmpty}>
                     <Ionicons name="person-add-outline" size={32} color={colors.text.tertiary} />
-                    <Text style={z.pickerEmptyT}>
-                      {hasBnet ? 'No characters found' : 'Link Battle.net to auto-load characters'}
-                    </Text>
-                    <Text style={z.pickerEmptySub}>
-                      {hasBnet
-                        ? 'Make sure your WoW profile is set to public'
-                        : 'Or search a character on the Profile tab and save as a favorite'}
-                    </Text>
+                    <Text style={z.pickerEmptyT}>{hasBnet ? 'No characters found' : 'Link Battle.net to auto-load characters'}</Text>
+                    <Text style={z.pickerEmptySub}>{hasBnet ? 'Make sure your WoW profile is set to public' : 'Or search a character on the Profile tab and save as a favorite'}</Text>
                   </View>
                 )}
               </ScrollView>
@@ -372,22 +305,13 @@ const z = StyleSheet.create({
   loadC: { flex: 1, backgroundColor: colors.bg.primary, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   loadT: { ...typography.body, color: colors.text.secondary },
   list: { paddingHorizontal: PAD, paddingBottom: 100 },
-
   hdr: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { ...typography.display, color: colors.gold.primary },
-
-  charBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    paddingHorizontal: spacing.md, paddingVertical: 8,
-    borderRadius: radii.full, borderWidth: 1,
-    borderColor: colors.border.default, backgroundColor: colors.bg.secondary,
-    maxWidth: SW * 0.45,
-  },
+  charBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radii.full, borderWidth: 1, borderColor: colors.border.default, backgroundColor: colors.bg.secondary, maxWidth: SW * 0.45 },
   charBtnActive: { borderColor: colors.gold.dim, backgroundColor: colors.gold.muted },
   charBtnText: { fontSize: 12, fontWeight: '600', color: colors.gold.primary, flex: 1 },
   charBtnTextDim: { fontSize: 12, fontWeight: '500', color: colors.text.secondary, flex: 1 },
-
   progCard: { padding: spacing.lg },
   progRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
   progInfo: { flex: 1, gap: spacing.xs },
@@ -396,14 +320,8 @@ const z = StyleSheet.create({
   progTotal: { fontSize: 16, fontWeight: '400', color: colors.text.tertiary },
   progHint: { ...typography.caption, color: colors.text.secondary },
   progPct: { fontSize: 11, fontWeight: '700', color: colors.gold.primary },
-
   chips: { flexDirection: 'row', gap: spacing.sm, paddingVertical: spacing.xs },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: spacing.md, paddingVertical: 6,
-    borderRadius: radii.full, backgroundColor: colors.bg.tertiary,
-    borderWidth: 1, borderColor: colors.border.default,
-  },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radii.full, backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default },
   chipA: { backgroundColor: colors.gold.muted, borderColor: colors.gold.dim },
   chipT: { fontSize: 11, color: colors.text.secondary, fontWeight: '600', textTransform: 'capitalize' },
   chipTA: { color: colors.gold.primary },
@@ -414,44 +332,21 @@ const z = StyleSheet.create({
   row: { gap: GAP, marginBottom: GAP },
   empty: { alignItems: 'center', paddingVertical: 80, gap: spacing.md },
   emptyT: { ...typography.heading, color: colors.text.secondary },
-
-  // Character picker modal
   pickerBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(5,7,14,0.6)' },
-  pickerSheet: {
-    backgroundColor: colors.bg.secondary,
-    borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl,
-    borderTopWidth: 1, borderColor: colors.border.subtle,
-    paddingBottom: 40, maxHeight: '70%',
-  },
+  pickerSheet: { backgroundColor: colors.bg.secondary, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, borderTopWidth: 1, borderColor: colors.border.subtle, paddingBottom: 40, maxHeight: '72%' },
   pickerHandle: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.border.subtle, alignSelf: 'center', marginTop: spacing.md },
   pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xs },
-  pickerTitle: { ...typography.heading, color: colors.text.primary },
-  pickerSub: { ...typography.caption, color: colors.text.tertiary, paddingHorizontal: spacing.xl, marginBottom: spacing.md },
-
+  pickerTitle: { ...typography.heading },
+  pickerSub: { ...typography.caption, color: colors.text.tertiary, paddingHorizontal: spacing.xl, marginBottom: spacing.sm },
   pickerLoading: { paddingVertical: spacing.xxxl, alignItems: 'center' },
-  pickerSection: {
-    ...typography.label, color: colors.text.tertiary,
-    paddingHorizontal: spacing.md, paddingTop: spacing.lg, paddingBottom: spacing.sm,
-  },
-  pickerClear: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    marginHorizontal: spacing.xl, marginBottom: spacing.sm,
-    padding: spacing.md, borderRadius: radii.md,
-    backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default,
-  },
+  pickerSection: { ...typography.label, color: colors.text.tertiary, paddingHorizontal: spacing.md, paddingTop: spacing.lg, paddingBottom: spacing.sm },
+  pickerClear: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.xl, marginBottom: spacing.sm, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default },
   pickerClearT: { ...typography.body, color: colors.text.secondary },
-
+  pickerList: { paddingHorizontal: spacing.xl },
   pickerEmpty: { alignItems: 'center', paddingVertical: spacing.xxxl, paddingHorizontal: spacing.xl, gap: spacing.md },
   pickerEmptyT: { ...typography.subheading, color: colors.text.secondary, textAlign: 'center' },
   pickerEmptySub: { ...typography.caption, color: colors.text.tertiary, textAlign: 'center', lineHeight: 18 },
-
-  pickerList: { paddingHorizontal: spacing.xl },
-  favRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingVertical: spacing.md, paddingHorizontal: spacing.md,
-    borderRadius: radii.md, marginBottom: spacing.sm,
-    backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default,
-  },
+  favRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderRadius: radii.md, marginBottom: spacing.sm, backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default },
   favRowActive: { borderColor: colors.gold.dim, backgroundColor: colors.gold.muted },
   favAvatar: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.bg.elevated },
   favAvatarPh: { alignItems: 'center', justifyContent: 'center' },

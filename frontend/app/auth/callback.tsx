@@ -1,33 +1,27 @@
-/**
- * auth/callback — Expo Router catches the deep link here.
- * Stores the token and redirects back to the main app.
- */
-
 import { useEffect } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import api from '../../services/api';
+import { useApp } from '../../contexts/AppContext';
 import { colors, typography, spacing } from '../../theme';
 
 export default function AuthCallback() {
   const params = useLocalSearchParams<{ token?: string; battletag?: string; error?: string }>();
   const router = useRouter();
+  const { refreshMe } = useApp();
 
   useEffect(() => {
     (async () => {
       if (params.error) {
-        // OAuth failed — go back
         router.replace('/(tabs)');
         return;
       }
-
       if (params.token) {
         await SecureStore.setItemAsync('auth_token', params.token);
         api.setToken(params.token);
+        await refreshMe();
       }
-
-      // Small delay so the user sees the success state
       setTimeout(() => {
         router.replace('/(tabs)/profile');
       }, 800);
