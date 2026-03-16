@@ -7,6 +7,7 @@ export interface SelectedChar {
   character_name: string; // always lowercase
   display: string;
   avatar_url?: string | null;
+  faction?: string | null; // 'alliance' | 'horde' | null
 }
 
 interface AppContextType {

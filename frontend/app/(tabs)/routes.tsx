@@ -50,10 +50,12 @@ export default function RoutesScreen() {
     const farmable = ['raid','dungeon','world_boss','reputation','achievement','vendor','quest'];
     const existingMountIds = new Set(tasks.filter(t => t.mount_id).map(t => t.mount_id));
     // If character selected, filter to mounts they don't have. Otherwise plan all farmable.
+    const charFaction = selectedChar?.faction?.toLowerCase();
     const missing = mounts.filter(m =>
       m.source_type && farmable.includes(m.source_type) &&
       !existingMountIds.has(m.id) &&
-      (selectedChar ? !collectedIds.has(m.id) : true)
+      (selectedChar ? !collectedIds.has(m.id) : true) &&
+      !(charFaction && m.faction && m.faction !== charFaction)
     );
 
     if (missing.length === 0) { Alert.alert('All Planned', selectedChar ? 'All missing farmable mounts are already in your task list!' : 'All farmable mounts are already planned!'); return; }

@@ -8,15 +8,15 @@ import api, { MountSummary } from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
 
 const DIFF: Record<string,{rank:number;label:string;icon:string;color:string;tip:string}> = {
-  vendor:{rank:1,label:'Vendor',icon:'cart-outline',color:'#4ADE80',tip:'Just buy it!'},
-  quest:{rank:2,label:'Quest',icon:'flag-outline',color:'#FDE047',tip:'Complete a questline'},
-  achievement:{rank:3,label:'Achievement',icon:'trophy-outline',color:'#F5B800',tip:'Check achievement progress'},
-  reputation:{rank:4,label:'Reputation',icon:'people-outline',color:'#4ADE80',tip:'Grind it out over time'},
-  promotion:{rank:5,label:'Promotion',icon:'gift-outline',color:'#22D3EE',tip:'Check store or promos'},
-  drop:{rank:6,label:'World Drop',icon:'globe-outline',color:'#94A3B8',tip:'Rare chance from mobs'},
-  dungeon:{rank:7,label:'Dungeon',icon:'key-outline',color:'#38BDF8',tip:'Farm the dungeon boss'},
-  raid:{rank:8,label:'Raid',icon:'skull-outline',color:'#C084FC',tip:'Weekly lockout farm'},
-  world_boss:{rank:9,label:'World Boss',icon:'flame-outline',color:'#FB923C',tip:'Weekly kill — low drop rate'},
+  vendor:      {rank:1,label:'Vendor',      icon:'cart-outline',          color:'#E2E8F0',tip:'Buy directly from a vendor.'},
+  quest:       {rank:2,label:'Quest',        icon:'flag-outline',          color:'#FDE047',tip:'Complete a questline.'},
+  achievement: {rank:3,label:'Achievement',  icon:'trophy-outline',        color:'#F5B800',tip:'Earn a specific achievement.'},
+  reputation:  {rank:4,label:'Reputation',   icon:'people-outline',        color:'#4ADE80',tip:'Reach Exalted rep with a faction.'},
+  promotion:   {rank:5,label:'Promotion',    icon:'gift-outline',          color:'#22D3EE',tip:'Battle.net shop or promotions.'},
+  drop:        {rank:6,label:'World Drop',   icon:'globe-outline',         color:'#94A3B8',tip:'Rare random drop from mobs.'},
+  dungeon:     {rank:7,label:'Dungeon',      icon:'key-outline',           color:'#38BDF8',tip:'Farm dungeon boss daily.'},
+  raid:        {rank:8,label:'Raid',         icon:'skull-outline',         color:'#C084FC',tip:'Weekly lockout farm.'},
+  world_boss:  {rank:9,label:'World Boss',   icon:'flame-outline',         color:'#FB923C',tip:'Weekly kill — ~1-3% drop rate.'},
 };
 
 interface QWGroup { source:string; info:typeof DIFF[string]; mounts:MountSummary[]; }
@@ -34,21 +34,39 @@ export default function QuickWinsScreen() {
   useEffect(() => { load(); }, [load]);
 
   const groups = useMemo(() => {
-    const missing = mounts.filter(m => (selectedChar ? !collectedIds.has(m.id) : true) && m.source_type);
+    const charFaction = selectedChar?.faction?.toLowerCase();
+    const missing = mounts.filter(m => {
+      if (!m.source_type) return false;
+      if (selectedChar && collectedIds.has(m.id)) return false;
+      // Hide mounts restricted to opposing faction when we know the character's faction
+      if (charFaction && m.faction && m.faction !== charFaction) return false;
+      return true;
+    });
     const map = new Map<string, MountSummary[]>();
-    for (const m of missing) { const s = m.source_type || 'unknown'; if (!map.has(s)) map.set(s, []); map.get(s)!.push(m); }
+    for (const m of missing) {
+      const s = m.source_type!;
+      if (!map.has(s)) map.set(s, []);
+      map.get(s)!.push(m);
+    }
     const r: QWGroup[] = [];
-    for (const [source, list] of map.entries()) { const info = DIFF[source]; if (info) r.push({ source, info, mounts: list }); }
+    for (const [source, list] of map.entries()) {
+      const info = DIFF[source];
+      if (info) r.push({ source, info, mounts: list });
+    }
     return r.sort((a, b) => a.info.rank - b.info.rank);
   }, [mounts, collectedIds, selectedChar]);
 
-  const totalMissing = selectedChar ? mounts.filter(m => !collectedIds.has(m.id)).length : mounts.length;
+  const totalMissing = useMemo(() => {
+    if (!selectedChar) return mounts.length;
+    const charFaction = selectedChar.faction?.toLowerCase();
+    return mounts.filter(m => {
+      if (collectedIds.has(m.id)) return false;
+      if (charFaction && m.faction && m.faction !== charFaction) return false;
+      return true;
+    }).length;
+  }, [mounts, collectedIds, selectedChar]);
+
   const easyCount = groups.filter(g => g.info.rank <= 3).reduce((s, g) => s + g.mounts.length, 0);
-
-  const addToFarm = useCallback(async (m: {id:number;name:string;source_type?:string}) => {
-    try { await api.createFarmTask({ title: m.name, mount_id: m.id, source_type: m.source_type, reset_type: 'weekly' }); setSelected(null); } catch {}
-  }, []);
-
   const noSourceData = mounts.length > 0 && groups.length === 0 && !mounts.some(m => m.source_type && DIFF[m.source_type]);
 
   return (
@@ -94,6 +112,8 @@ export default function QuickWinsScreen() {
                       : <View style={[z.mt, z.mtPh]}><Ionicons name="sparkles-outline" size={12} color={colors.gold.dim} /></View>
                     }
                     <Text style={z.mn} numberOfLines={1}>{m.name}</Text>
+                    {m.faction === 'alliance' && <View style={[z.fBadge, {backgroundColor:'#4A90D918'}]}><Text style={[z.fBadgeT, {color:'#4A90D9'}]}>A</Text></View>}
+                    {m.faction === 'horde' && <View style={[z.fBadge, {backgroundColor:'#C41F3B18'}]}><Text style={[z.fBadgeT, {color:'#C41F3B'}]}>H</Text></View>}
                     <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />
                   </Pressable>
                 ))}
@@ -115,7 +135,7 @@ export default function QuickWinsScreen() {
           </View>
         ) : null}
       />
-      <MountDetailModal mountId={selected} visible={selected !== null} onClose={() => setSelected(null)} onAddToFarm={addToFarm} />
+      <MountDetailModal mountId={selected} visible={selected !== null} onClose={() => setSelected(null)} onFarmChange={() => {}} />
     </SafeAreaView>
   );
 }
@@ -145,6 +165,8 @@ const z = StyleSheet.create({
   mt:{width:28,height:28,borderRadius:radii.sm,backgroundColor:colors.bg.tertiary},
   mtPh:{alignItems:'center',justifyContent:'center'},
   mn:{flex:1,fontSize:12,color:colors.text.primary},
+  fBadge:{width:16,height:16,borderRadius:8,alignItems:'center',justifyContent:'center'},
+  fBadgeT:{fontSize:8,fontWeight:'800'},
   more:{paddingVertical:spacing.sm,alignItems:'center'},
   moreT:{fontSize:11,color:colors.gold.primary,fontWeight:'600'},
   empty:{alignItems:'center',paddingVertical:80,gap:spacing.md,paddingHorizontal:spacing.xl},

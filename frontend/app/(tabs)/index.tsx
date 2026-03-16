@@ -97,10 +97,6 @@ export default function CollectionScreen() {
     const s = new Set<string>(); mounts.forEach(m => m.source_type && s.add(m.source_type)); return Array.from(s).sort();
   }, [mounts]);
 
-  const addToFarm = useCallback(async (m: { id: number; name: string; source_type?: string }) => {
-    try { await api.createFarmTask({ title: m.name, mount_id: m.id, source_type: m.source_type, reset_type: 'weekly' }); setSelected(null); } catch {}
-  }, []);
-
   const onView = useRef(({ viewableItems }: any) => {
     const ids = viewableItems.map((v: any) => v.item.id).filter((id: number) => iconCache[id] === undefined);
     if (ids.length) queueIcons(ids);
@@ -203,7 +199,7 @@ export default function CollectionScreen() {
         }
       />
 
-      <MountDetailModal mountId={selected} visible={selected !== null} onClose={() => setSelected(null)} onAddToFarm={addToFarm} />
+      <MountDetailModal mountId={selected} visible={selected !== null} onClose={() => setSelected(null)} onFarmChange={() => {}} />
 
       {/* Character picker */}
       <Modal visible={charPickerVisible} animationType="slide" transparent onRequestClose={() => setCharPickerVisible(false)}>
@@ -237,7 +233,7 @@ export default function CollectionScreen() {
                       const isActive = selectedChar?.character_name === char.name?.toLowerCase() && selectedChar?.realm_slug === char.realm_slug;
                       return (
                         <Pressable key={`${char.realm_slug}-${char.name}`}
-                          onPress={() => { selectCharacter({ realm_slug: char.realm_slug, character_name: char.name, display: `${char.name}-${char.realm_slug}` }); setCharPickerVisible(false); }}
+                          onPress={() => { selectCharacter({ realm_slug: char.realm_slug, character_name: char.name, display: `${char.name}-${char.realm_slug}`, faction: char.faction?.toLowerCase() }); setCharPickerVisible(false); }}
                           style={[z.favRow, isActive && z.favRowActive]}>
                           <View style={[z.favAvatar, z.favAvatarPh]}>
                             <Ionicons name="person" size={16} color={colors.classColor[char.class_name] || colors.text.tertiary} />
