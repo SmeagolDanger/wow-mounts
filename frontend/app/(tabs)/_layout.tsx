@@ -6,23 +6,22 @@ import { colors } from '../../theme';
 export default function TabLayout() {
   return (
     <Tabs screenOptions={{
-      headerShown: false,
-      tabBarStyle: styles.tabBar,
-      tabBarActiveTintColor: colors.gold.primary,
-      tabBarInactiveTintColor: colors.text.tertiary,
-      tabBarLabelStyle: styles.tabLabel,
-      tabBarItemStyle: styles.tabItem,
+      headerShown:false,
+      tabBarStyle:z.bar,
+      tabBarActiveTintColor:colors.gold.primary,
+      tabBarInactiveTintColor:colors.text.tertiary,
+      tabBarLabelStyle:z.label,
     }}>
-      <Tabs.Screen name="index" options={{ title: 'Collection', tabBarIcon: ({ color, size }) => <Ionicons name="trophy" size={size} color={color} /> }} />
-      <Tabs.Screen name="farm" options={{ title: 'Farm', tabBarIcon: ({ color, size }) => <Ionicons name="checkbox" size={size} color={color} /> }} />
-      <Tabs.Screen name="routes" options={{ title: 'Routes', tabBarIcon: ({ color, size }) => <Ionicons name="map" size={size} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }} />
+      <Tabs.Screen name="index" options={{title:'Collection',tabBarIcon:({color,size})=><Ionicons name="trophy" size={size} color={color}/>}}/>
+      <Tabs.Screen name="quickwins" options={{title:'Quick Wins',tabBarIcon:({color,size})=><Ionicons name="flash" size={size} color={color}/>}}/>
+      <Tabs.Screen name="farm" options={{title:'Farm',tabBarIcon:({color,size})=><Ionicons name="checkbox" size={size} color={color}/>}}/>
+      <Tabs.Screen name="routes" options={{title:'Planner',tabBarIcon:({color,size})=><Ionicons name="map" size={size} color={color}/>}}/>
+      <Tabs.Screen name="profile" options={{title:'Profile',tabBarIcon:({color,size})=><Ionicons name="person" size={size} color={color}/>}}/>
     </Tabs>
   );
 }
 
-const styles = StyleSheet.create({
-  tabBar: { backgroundColor: colors.bg.secondary, borderTopColor: colors.border.default, borderTopWidth: 1, height: 88, paddingTop: 8, paddingBottom: 28, elevation: 0, shadowOpacity: 0 },
-  tabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
-  tabItem: { gap: 4 },
+const z = StyleSheet.create({
+  bar:{backgroundColor:colors.bg.secondary,borderTopColor:colors.border.default,borderTopWidth:1,height:88,paddingTop:8,paddingBottom:28,elevation:0,shadowOpacity:0},
+  label:{fontSize:10,fontWeight:'600',letterSpacing:0.3},
 });
