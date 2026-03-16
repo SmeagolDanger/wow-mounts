@@ -13,13 +13,12 @@ OAuth flow:
 
 import logging
 import re
-from datetime import datetime, timezone, timedelta
-from typing import Optional
-from urllib.parse import urlencode, quote
+from datetime import UTC, datetime, timedelta
+from urllib.parse import urlencode
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,12 +40,13 @@ APP_SCHEME = "wowmounts"
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
+
 def create_jwt(user_id: int, battletag: str = None) -> str:
     payload = {
         "sub": str(user_id),
         "battletag": battletag,
-        "iat": datetime.now(timezone.utc),
-        "exp": datetime.now(timezone.utc) + timedelta(days=30),
+        "iat": datetime.now(UTC),
+        "exp": datetime.now(UTC) + timedelta(days=30),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
@@ -55,14 +55,14 @@ def decode_jwt(token: str) -> dict:
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        raise HTTPException(status_code=401, detail="Token expired") from None
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token") from None
 
 
 def _extract_token(
-    authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None),
+    authorization: str | None = Header(None),
+    token: str | None = Query(None),
 ) -> str:
     """Extract JWT from Authorization header (preferred) or query param (fallback)."""
     if authorization and authorization.startswith("Bearer "):
@@ -78,7 +78,7 @@ def _validate_device_id(device_id: str) -> str:
     return device_id
 
 
-def _create_oauth_state(device_id: Optional[str] = None) -> str:
+def _create_oauth_state(device_id: str | None = None) -> str:
     """Create a signed, short-lived JWT to use as the OAuth state parameter.
     Encodes the device_id so we can link accounts on callback.
     Expires in 10 minutes — plenty for a login flow.
@@ -86,25 +86,25 @@ def _create_oauth_state(device_id: Optional[str] = None) -> str:
     payload = {
         "purpose": "oauth_state",
         "device_id": device_id,
-        "iat": datetime.now(timezone.utc),
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+        "iat": datetime.now(UTC),
+        "exp": datetime.now(UTC) + timedelta(minutes=10),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
 
-def _verify_oauth_state(state: str) -> Optional[str]:
+def _verify_oauth_state(state: str) -> str | None:
     """Verify the OAuth state JWT and return the device_id (or None).
     Raises HTTPException if the state is invalid or expired.
     """
     try:
         payload = jwt.decode(state, settings.SECRET_KEY, algorithms=["HS256"])
         if payload.get("purpose") != "oauth_state":
-            raise HTTPException(400, "Invalid OAuth state")
+            raise HTTPException(400, "Invalid OAuth state") from None
         return payload.get("device_id")
     except jwt.ExpiredSignatureError:
-        raise HTTPException(400, "OAuth session expired — please try logging in again")
+        raise HTTPException(400, "OAuth session expired — please try logging in again") from None
     except jwt.PyJWTError:
-        raise HTTPException(400, "Invalid OAuth state")
+        raise HTTPException(400, "Invalid OAuth state") from None
 
 
 def _build_deep_link(path: str, params: dict) -> str:
@@ -165,6 +165,7 @@ def _build_fallback_html(deep_link: str, battletag: str = "") -> str:
 
 # ── Device Auth (no Battle.net required) ─────────────────────────────
 
+
 @router.post("/device")
 async def device_auth(device_id: str = Query(...), db: AsyncSession = Depends(get_db)):
     """Register or login with a device ID (anonymous, no Battle.net needed)."""
@@ -185,8 +186,9 @@ async def device_auth(device_id: str = Query(...), db: AsyncSession = Depends(ge
 
 # ── Battle.net OAuth ─────────────────────────────────────────────────
 
+
 @router.get("/bnet/login")
-async def bnet_login(device_id: Optional[str] = Query(None)):
+async def bnet_login(device_id: str | None = Query(None)):
     """Return Battle.net OAuth authorize URL.
     Pass device_id to link the Battle.net account to an existing anonymous user.
     """
@@ -202,8 +204,8 @@ async def bnet_login(device_id: Optional[str] = Query(None)):
 async def bnet_callback(
     code: str = Query(None),
     state: str = Query(None),
-    error: Optional[str] = Query(None),
-    error_description: Optional[str] = Query(None),
+    error: str | None = Query(None),
+    error_description: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Battle.net OAuth callback — GET redirect from Blizzard.
@@ -262,8 +264,10 @@ async def bnet_callback(
             user.bnet_access_token = access_token
         else:
             user = User(
-                bnet_id=bnet_id, battletag=battletag,
-                bnet_access_token=access_token, device_id=device_id,
+                bnet_id=bnet_id,
+                battletag=battletag,
+                bnet_access_token=access_token,
+                device_id=device_id,
             )
             db.add(user)
     else:
@@ -277,11 +281,14 @@ async def bnet_callback(
     app_token = create_jwt(user.id, battletag)
 
     # Redirect to the Expo app via deep link
-    deep_link = _build_deep_link("auth/callback", {
-        "token": app_token,
-        "battletag": battletag,
-        "user_id": str(user.id),
-    })
+    deep_link = _build_deep_link(
+        "auth/callback",
+        {
+            "token": app_token,
+            "battletag": battletag,
+            "user_id": str(user.id),
+        },
+    )
 
     logger.info("OAuth complete for %s (user %d), redirecting to app", battletag, user.id)
 
@@ -292,6 +299,7 @@ async def bnet_callback(
 
 
 # ── User Info ────────────────────────────────────────────────────────
+
 
 @router.get("/me")
 async def get_me(

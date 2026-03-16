@@ -1,19 +1,18 @@
 """WoW Mount Tracker — FastAPI Backend."""
 
-import time
 import logging
+import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import get_settings
 from app.database import init_db
+from app.routes import auth, characters, farm, mounts
 from app.services.blizzard import blizzard_api
-from app.routes import auth, mounts, characters, farm
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,6 +23,7 @@ settings = get_settings()
 
 
 # ── Rate Limiting Middleware ─────────────────────────────────────────
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Simple in-memory per-IP rate limiter."""
@@ -64,6 +64,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 # ── Security Headers Middleware ──────────────────────────────────────
 
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -80,6 +81,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 # ── App Setup ────────────────────────────────────────────────────────
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

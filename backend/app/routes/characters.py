@@ -1,18 +1,22 @@
 """Character search, profiles, and favorites."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import User, FavoriteCharacter
+from app.models import FavoriteCharacter
 from app.routes.auth import decode_jwt
 from app.services.blizzard import blizzard_api
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/characters", tags=["characters"])
 
 
 # ── Public Character Lookup ──────────────────────────────────────────
+
 
 @router.get("/lookup")
 async def lookup_character(
@@ -24,7 +28,7 @@ async def lookup_character(
     try:
         profile = await blizzard_api.get_character_profile(realm, name)
     except Exception as e:
-        raise HTTPException(404, f"Character not found: {e}")
+        raise HTTPException(404, f"Character not found: {e}") from e
 
     # Try to get mount collection
     mounts = None
@@ -32,7 +36,7 @@ async def lookup_character(
         mount_data = await blizzard_api.get_character_mounts(realm, name)
         mounts = mount_data.get("mounts", [])
     except Exception:
-        pass  # Private profile or API error
+        logger.debug("Mount collection unavailable (private profile or API error)")
 
     # Get character media
     avatar_url = None
@@ -46,7 +50,7 @@ async def lookup_character(
             if asset.get("key") == "inset":
                 avatar_url = asset.get("value")
     except Exception:
-        pass
+        logger.debug("Character media unavailable")
 
     return {
         "name": profile.get("name"),
@@ -68,17 +72,13 @@ async def get_realms():
     try:
         data = await blizzard_api.get_realm_index()
         realms = data.get("realms", [])
-        return {
-            "realms": [
-                {"id": r.get("id"), "name": r.get("name"), "slug": r.get("slug")}
-                for r in realms
-            ]
-        }
+        return {"realms": [{"id": r.get("id"), "name": r.get("name"), "slug": r.get("slug")} for r in realms]}
     except Exception as e:
-        raise HTTPException(502, f"Failed to fetch realms: {e}")
+        raise HTTPException(502, f"Failed to fetch realms: {e}") from e
 
 
 # ── Favorites (requires auth) ───────────────────────────────────────
+
 
 @router.get("/favorites")
 async def get_favorites(
@@ -142,7 +142,7 @@ async def add_favorite(
     try:
         profile = await blizzard_api.get_character_profile(realm_slug, character_name)
     except Exception:
-        raise HTTPException(404, "Character not found on Blizzard API")
+        raise HTTPException(404, "Character not found on Blizzard API") from None
 
     avatar_url = None
     try:
@@ -152,12 +152,10 @@ async def add_favorite(
                 avatar_url = asset.get("value")
                 break
     except Exception:
-        pass
+        logger.debug("Character media unavailable")
 
     # Check if this is the first character (make it primary)
-    result = await db.execute(
-        select(FavoriteCharacter).where(FavoriteCharacter.user_id == user_id)
-    )
+    result = await db.execute(select(FavoriteCharacter).where(FavoriteCharacter.user_id == user_id))
     is_first = result.scalar_one_or_none() is None
 
     fav = FavoriteCharacter(

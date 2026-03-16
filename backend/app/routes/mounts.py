@@ -1,15 +1,15 @@
 """Mount data routes with caching layer."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.models import CachedMount
-from app.config import get_settings
 from app.services.blizzard import blizzard_api
 
 router = APIRouter(prefix="/mounts", tags=["mounts"])
@@ -25,7 +25,7 @@ async def get_mount_index(db: AsyncSession = Depends(get_db)):
     sample = result.scalar_one_or_none()
 
     if sample and sample.cached_at:
-        age = (datetime.now(timezone.utc) - sample.cached_at.replace(tzinfo=timezone.utc)).total_seconds()
+        age = (datetime.now(UTC) - sample.cached_at.replace(tzinfo=UTC)).total_seconds()
         if age < settings.MOUNT_INDEX_TTL:
             # Return from cache
             result = await db.execute(select(CachedMount).order_by(CachedMount.name))
@@ -58,18 +58,24 @@ async def get_mount_index(db: AsyncSession = Depends(get_db)):
         if mounts:
             return {
                 "mounts": [
-                    {"id": m.id, "name": m.name, "description": m.description,
-                     "source_type": m.source_type, "faction": m.faction,
-                     "icon_url": m.icon_url, "creature_display_id": m.creature_display_id}
+                    {
+                        "id": m.id,
+                        "name": m.name,
+                        "description": m.description,
+                        "source_type": m.source_type,
+                        "faction": m.faction,
+                        "icon_url": m.icon_url,
+                        "creature_display_id": m.creature_display_id,
+                    }
                     for m in mounts
                 ],
                 "total": len(mounts),
                 "cached": True,
                 "stale": True,
             }
-        raise HTTPException(502, f"Blizzard API error: {e}")
+        raise HTTPException(502, f"Blizzard API error: {e}") from e
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     mounts_list = data.get("mounts", [])
     response_mounts = []
 
@@ -100,16 +106,18 @@ async def search_mounts(
 ):
     """Search mounts by name."""
     result = await db.execute(
-        select(CachedMount)
-        .where(CachedMount.name.ilike(f"%{q}%"))
-        .order_by(CachedMount.name)
-        .limit(50)
+        select(CachedMount).where(CachedMount.name.ilike(f"%{q}%")).order_by(CachedMount.name).limit(50)
     )
     mounts = result.scalars().all()
     return {
         "mounts": [
-            {"id": m.id, "name": m.name, "description": m.description,
-             "source_type": m.source_type, "icon_url": m.icon_url}
+            {
+                "id": m.id,
+                "name": m.name,
+                "description": m.description,
+                "source_type": m.source_type,
+                "icon_url": m.icon_url,
+            }
             for m in mounts
         ],
         "total": len(mounts),
@@ -124,7 +132,7 @@ async def get_mount_detail(mount_id: int, db: AsyncSession = Depends(get_db)):
     cached = result.scalar_one_or_none()
 
     if cached and cached.raw_data:
-        age = (datetime.now(timezone.utc) - cached.cached_at.replace(tzinfo=timezone.utc)).total_seconds()
+        age = (datetime.now(UTC) - cached.cached_at.replace(tzinfo=UTC)).total_seconds()
         if age < settings.MOUNT_DETAIL_TTL:
             return cached.raw_data
 
@@ -134,7 +142,7 @@ async def get_mount_detail(mount_id: int, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         if cached and cached.raw_data:
             return cached.raw_data
-        raise HTTPException(502, f"Blizzard API error: {e}")
+        raise HTTPException(502, f"Blizzard API error: {e}") from e
 
     # Try to get creature media for icon
     icon_url = None
@@ -153,7 +161,7 @@ async def get_mount_detail(mount_id: int, db: AsyncSession = Depends(get_db)):
                 if not icon_url and assets:
                     icon_url = assets[0].get("value")
             except Exception:
-                pass
+                logger.debug("Creature media fetch failed for display %s", creature_display_id)
 
     # Enrich response
     data["icon_url"] = icon_url
@@ -172,7 +180,7 @@ async def get_mount_detail(mount_id: int, db: AsyncSession = Depends(get_db)):
         cached.icon_url = icon_url
         cached.creature_display_id = creature_display_id
         cached.raw_data = data
-        cached.cached_at = datetime.now(timezone.utc)
+        cached.cached_at = datetime.now(UTC)
     else:
         cached = CachedMount(
             id=mount_id,
@@ -183,7 +191,7 @@ async def get_mount_detail(mount_id: int, db: AsyncSession = Depends(get_db)):
             icon_url=icon_url,
             creature_display_id=creature_display_id,
             raw_data=data,
-            cached_at=datetime.now(timezone.utc),
+            cached_at=datetime.now(UTC),
         )
         db.add(cached)
 
