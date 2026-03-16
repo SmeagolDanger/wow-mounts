@@ -27,9 +27,9 @@ class ApiService {
   async deviceAuth(did: string) { const d = await this.request<{token:string;user_id:number;battletag:string|null}>('/auth/device',{method:'POST'},{device_id:did}); this.token=d.token; await SecureStore.setItemAsync('auth_token',d.token); return d; }
   async getBnetLoginUrl() { const did=await this.getDeviceId(); const cb=Linking.createURL('auth/callback'); return this.request<{authorize_url:string;state:string}>('/auth/bnet/login',{},{device_id:did,app_redirect:cb}); }
   async getMe() { return this.request<{user_id:number;battletag:string|null;has_bnet:boolean}>('/auth/me'); }
-  async getMounts() { return this.request<{mounts:MountSummary[];total:number;cached:boolean}>('/mounts/'); }
+  async getMounts() { const r = await this.request<{mounts:MountSummary[];total:number;cached:boolean}>('/mounts/'); for (const m of r.mounts) if (m.source_type) m.source_type = m.source_type.toLowerCase(); return r; }
   async getMountIcons(ids:number[]) { return this.request<{icons:Record<string,string|null>}>('/mounts/icons',{},{ids:ids.join(',')}); }
-  async searchMounts(q:string) { return this.request<{mounts:MountSummary[];total:number}>('/mounts/search',{},{q}); }
+  async searchMounts(q:string) { const r = await this.request<{mounts:MountSummary[];total:number}>('/mounts/search',{},{q}); for (const m of r.mounts) if (m.source_type) m.source_type = m.source_type.toLowerCase(); return r; }
   async getMountDetail(id:number) { return this.request<any>(`/mounts/${id}`); }
   async lookupCharacter(realm:string,name:string,region='us') { return this.request<CharLookup>('/characters/lookup',{},{realm,name,region}); }
   async getRealms() { return this.request<{realms:{id:number;name:string;slug:string}[]}>('/characters/realms'); }

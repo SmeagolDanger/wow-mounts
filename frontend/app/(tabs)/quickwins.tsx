@@ -49,7 +49,7 @@ export default function QuickWinsScreen() {
     try { await api.createFarmTask({ title: m.name, mount_id: m.id, source_type: m.source_type, reset_type: 'weekly' }); setSelected(null); } catch {}
   }, []);
 
-  const noSourceData = mounts.length > 0 && groups.length === 0 && mounts.every(m => !m.source_type);
+  const noSourceData = mounts.length > 0 && groups.length === 0 && !mounts.some(m => m.source_type && DIFF[m.source_type]);
 
   return (
     <SafeAreaView style={z.safe} edges={['top']}>
