@@ -7,18 +7,18 @@
     "scheme": "wowmounts",
     "userInterfaceStyle": "dark",
     "splash": {
-      "backgroundColor": "#0A0C10",
+      "backgroundColor": "#08090D",
       "resizeMode": "contain"
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.wowmounts.tracker",
-      "backgroundColor": "#0A0C10"
+      "backgroundColor": "#08090D"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0A0C10"
+        "backgroundColor": "#08090D"
       },
       "package": "com.wowmounts.tracker"
     },
