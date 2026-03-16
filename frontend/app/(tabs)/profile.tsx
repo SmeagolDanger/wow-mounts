@@ -21,8 +21,10 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  AppState,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { colors, spacing, typography, radii, shadows } from '../../theme';
 import Card from '../../components/Card';
 import api from '../../services/api';
@@ -97,6 +99,15 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  // Reload profile every time this tab gains focus.
+  // This catches the case where the user just completed OAuth
+  // and the deep link handler stored a new token.
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
 
   // ── Character Search ────────────────────────────────────────
   const handleSearch = async () => {

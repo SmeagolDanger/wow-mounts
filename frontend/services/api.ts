@@ -1,10 +1,14 @@
 /**
  * API service — handles all communication with the backend.
+ *
+ * Auth is sent via the Authorization header (preferred) rather than
+ * query params to avoid token leakage in server logs and browser history.
  */
 
 import * as SecureStore from 'expo-secure-store';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
+const DEVICE_ID_KEY = 'device_id';
 
 class ApiService {
   private token: string | null = null;
@@ -17,23 +21,42 @@ class ApiService {
     }
   }
 
+  /** Set token directly (used by deep link callback). */
+  setToken(token: string) {
+    this.token = token;
+  }
+
+  /** Get or create a stable device ID. */
+  async getDeviceId(): Promise<string> {
+    let deviceId = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+    if (!deviceId) {
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+      await SecureStore.setItemAsync(DEVICE_ID_KEY, deviceId);
+    }
+    return deviceId;
+  }
+
   private async request<T>(
     path: string,
     options: RequestInit = {},
     params: Record<string, string> = {}
   ): Promise<T> {
     const url = new URL(`${API_BASE}${path}`);
-
-    // Add token to query params if available
-    if (this.token) {
-      params.token = this.token;
-    }
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Send auth via header, not query param
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
 
     const res = await fetch(url.toString(), {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...headers,
         ...options.headers,
       },
     });
@@ -60,22 +83,19 @@ class ApiService {
   }
 
   async getBnetLoginUrl() {
-    return this.request<{ authorize_url: string; state: string }>('/auth/bnet/login');
-  }
-
-  async bnetCallback(code: string, deviceId?: string) {
-    const params: Record<string, string> = { code };
-    if (deviceId) params.device_id = deviceId;
-
-    const data = await this.request<{ token: string; user_id: number; battletag: string; has_bnet: boolean }>(
-      '/auth/bnet/callback',
-      { method: 'POST' },
-      params
+    // Pass device_id so the backend can encode it in the OAuth state.
+    // This lets the callback link the Battle.net account to our anonymous user.
+    const deviceId = await this.getDeviceId();
+    return this.request<{ authorize_url: string; state: string }>(
+      '/auth/bnet/login',
+      {},
+      { device_id: deviceId }
     );
-    this.token = data.token;
-    await SecureStore.setItemAsync('auth_token', data.token);
-    return data;
   }
+
+  // Note: bnetCallback is no longer needed — the backend handles the
+  // Battle.net redirect and sends the user back via deep link
+  // (wowmounts://auth/callback?token=xxx). The root layout catches it.
 
   async getMe() {
     return this.request<{ user_id: number; battletag: string | null; has_bnet: boolean }>('/auth/me');

@@ -38,7 +38,6 @@ class FarmTaskUpdate(BaseModel):
 
 # ── Reset Logic ──────────────────────────────────────────────────────
 
-
 def _get_daily_reset() -> datetime:
     """WoW daily reset: 15:00 UTC (10 AM EST / 7 AM PST)."""
     now = datetime.now(timezone.utc)
@@ -74,7 +73,6 @@ def _should_reset(task: FarmTask) -> bool:
 
 # ── Routes ───────────────────────────────────────────────────────────
 
-
 @router.get("/")
 async def get_farm_tasks(
     token: str = Query(...),
@@ -85,7 +83,9 @@ async def get_farm_tasks(
     user_id = int(payload["sub"])
 
     result = await db.execute(
-        select(FarmTask).where(FarmTask.user_id == user_id).order_by(FarmTask.sort_order, FarmTask.created_at)
+        select(FarmTask)
+        .where(FarmTask.user_id == user_id)
+        .order_by(FarmTask.sort_order, FarmTask.created_at)
     )
     tasks = result.scalars().all()
 
@@ -166,7 +166,9 @@ async def toggle_complete(
     payload = decode_jwt(token)
     user_id = int(payload["sub"])
 
-    result = await db.execute(select(FarmTask).where(FarmTask.id == task_id, FarmTask.user_id == user_id))
+    result = await db.execute(
+        select(FarmTask).where(FarmTask.id == task_id, FarmTask.user_id == user_id)
+    )
     task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(404, "Task not found")
@@ -189,7 +191,9 @@ async def update_farm_task(
     payload = decode_jwt(token)
     user_id = int(payload["sub"])
 
-    result = await db.execute(select(FarmTask).where(FarmTask.id == task_id, FarmTask.user_id == user_id))
+    result = await db.execute(
+        select(FarmTask).where(FarmTask.id == task_id, FarmTask.user_id == user_id)
+    )
     task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(404, "Task not found")
@@ -211,7 +215,9 @@ async def delete_farm_task(
     payload = decode_jwt(token)
     user_id = int(payload["sub"])
 
-    result = await db.execute(select(FarmTask).where(FarmTask.id == task_id, FarmTask.user_id == user_id))
+    result = await db.execute(
+        select(FarmTask).where(FarmTask.id == task_id, FarmTask.user_id == user_id)
+    )
     task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(404, "Task not found")

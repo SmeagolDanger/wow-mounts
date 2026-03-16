@@ -14,7 +14,7 @@ class Settings:
     BNET_CLIENT_ID: str = os.getenv("BNET_CLIENT_ID", "")
     BNET_CLIENT_SECRET: str = os.getenv("BNET_CLIENT_SECRET", "")
     BNET_REGION: str = os.getenv("BNET_REGION", "us")
-    BNET_REDIRECT_URI: str = os.getenv("BNET_REDIRECT_URI", "http://localhost:8081/auth/callback")
+    BNET_REDIRECT_URI: str = os.getenv("BNET_REDIRECT_URI", "http://localhost:8000/api/auth/bnet/callback")
 
     # Database
     DATABASE_URL: str = os.getenv(
@@ -33,7 +33,7 @@ class Settings:
 
     # Cache TTLs (seconds)
     MOUNT_INDEX_TTL: int = 86400  # 24h — mount list rarely changes
-    CHARACTER_TTL: int = 3600  # 1h for character collections
+    CHARACTER_TTL: int = 3600     # 1h for character collections
     MOUNT_DETAIL_TTL: int = 604800  # 7 days for individual mount details
 
     def __init__(self):

@@ -78,20 +78,28 @@ class BlizzardAPI:
 
     async def get_creature_media(self, creature_display_id: int) -> dict:
         """Fetch creature display media (mount icons/renders)."""
-        return await self._game_data_request(f"/data/wow/media/creature-display/{creature_display_id}")
+        return await self._game_data_request(
+            f"/data/wow/media/creature-display/{creature_display_id}"
+        )
 
     # ── Character Data ───────────────────────────────────────────────
     async def get_character_profile(self, realm_slug: str, character_name: str) -> dict:
         """Fetch basic character profile (public, no OAuth needed)."""
         name = character_name.lower()
-        return await self._profile_request(f"/profile/wow/character/{realm_slug}/{name}")
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}"
+        )
 
     async def get_character_media(self, realm_slug: str, character_name: str) -> dict:
         """Fetch character render/avatar images."""
         name = character_name.lower()
-        return await self._profile_request(f"/profile/wow/character/{realm_slug}/{name}/character-media")
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}/character-media"
+        )
 
-    async def get_character_mounts(self, realm_slug: str, character_name: str, access_token: str = None) -> dict:
+    async def get_character_mounts(
+        self, realm_slug: str, character_name: str, access_token: str = None
+    ) -> dict:
         """Fetch a character's collected mounts.
         Public profiles work with client credentials.
         Private profiles need the user's OAuth token.
@@ -116,7 +124,8 @@ class BlizzardAPI:
 
     # ── OAuth Helpers ────────────────────────────────────────────────
     def get_authorize_url(self, state: str) -> str:
-        """Build Battle.net OAuth authorize URL."""
+        """Build Battle.net OAuth authorize URL with properly encoded params."""
+        from urllib.parse import urlencode
         params = {
             "client_id": settings.BNET_CLIENT_ID,
             "redirect_uri": settings.BNET_REDIRECT_URI,
@@ -124,8 +133,7 @@ class BlizzardAPI:
             "scope": "openid wow.profile",
             "state": state,
         }
-        qs = "&".join(f"{k}={v}" for k, v in params.items())
-        return f"{settings.bnet_authorize_url}?{qs}"
+        return f"{settings.bnet_authorize_url}?{urlencode(params)}"
 
     async def exchange_code(self, code: str) -> dict:
         """Exchange authorization code for access token."""

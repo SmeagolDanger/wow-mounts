@@ -1,7 +1,9 @@
 """SQLAlchemy models."""
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, UniqueConstraint
+from sqlalchemy import (
+    Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, UniqueConstraint
+)
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -28,7 +30,9 @@ class User(Base):
 
 class FavoriteCharacter(Base):
     __tablename__ = "favorite_characters"
-    __table_args__ = (UniqueConstraint("user_id", "realm_slug", "character_name", name="uq_user_character"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "realm_slug", "character_name", name="uq_user_character"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -47,7 +51,6 @@ class FavoriteCharacter(Base):
 
 class FarmTask(Base):
     """Tracks daily/weekly farm goals for mount acquisition."""
-
     __tablename__ = "farm_tasks"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -70,7 +73,6 @@ class FarmTask(Base):
 
 class CachedMount(Base):
     """Locally cached mount data from Blizzard API to reduce API calls."""
-
     __tablename__ = "cached_mounts"
 
     id = Column(Integer, primary_key=True)  # Blizzard mount ID
