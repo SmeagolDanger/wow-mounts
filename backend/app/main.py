@@ -86,8 +86,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting WoW Mount Tracker API [%s]", settings.APP_ENV)
-    await init_db()
-    logger.info("Database initialized")
+    try:
+        await init_db()
+        logger.info("Database initialized")
+    except Exception:
+        logger.warning("Database unavailable — starting without DB (health check will still work)")
     yield
     await blizzard_api.close()
     logger.info("Shutdown complete")
