@@ -112,8 +112,7 @@ export default function MountDetailModal({ mountId, visible, onClose, onAddToFar
                       <Image source={{ uri: icon }} style={z.mountImg} resizeMode="contain" />
                     ) : (
                       <View style={z.noImg}>
-                        <Ionicons name="image-outline" size={48} color={colors.text.tertiary} />
-                        <Text style={z.noImgText}>Loading image...</Text>
+                        <Ionicons name="horse" size={44} color={colors.text.tertiary} />
                       </View>
                     )}
                   </Animated.View>

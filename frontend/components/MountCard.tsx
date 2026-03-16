@@ -9,36 +9,72 @@ const src:Record<string,string> = {raid:'Raid',dungeon:'Dungeon',world_boss:'Bos
 
 export default function MountCard({name,iconUrl,sourceType,collected,onPress}:P) {
   const shimmer = useRef(new Animated.Value(0)).current;
-  useEffect(() => { if (!iconUrl) { const a=Animated.loop(Animated.sequence([Animated.timing(shimmer,{toValue:1,duration:1400,useNativeDriver:true}),Animated.timing(shimmer,{toValue:0,duration:1400,useNativeDriver:true})])); a.start(); return ()=>a.stop(); } }, [iconUrl]);
-  const op = shimmer.interpolate({inputRange:[0,1],outputRange:[0.15,0.35]});
-  const sc = sourceType ? (colors.source[sourceType]||colors.text.tertiary) : colors.text.tertiary;
+  useEffect(() => {
+    if (!iconUrl) {
+      const a = Animated.loop(Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 1600, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 1600, useNativeDriver: true }),
+      ]));
+      a.start();
+      return () => a.stop();
+    }
+  }, [iconUrl]);
+
+  const op = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.25] });
+  const sc = sourceType ? (colors.source[sourceType] || colors.text.tertiary) : null;
 
   return (
-    <Pressable onPress={onPress} style={({pressed})=>[s.wrap,collected&&s.collected,pressed&&s.pressed]}>
+    <Pressable onPress={onPress} style={({ pressed }) => [s.wrap, collected && s.collected, pressed && s.pressed]}>
       <View style={s.imgWrap}>
-        {iconUrl ? <Image source={{uri:iconUrl}} style={s.img} resizeMode="cover"/> : <Animated.View style={[s.ph,{opacity:op}]}><Ionicons name="sparkles-outline" size={22} color={colors.gold.dim}/></Animated.View>}
-        {collected&&<View style={s.check}><Ionicons name="checkmark-circle" size={16} color={colors.fel.bright}/></View>}
+        {iconUrl
+          ? <Image source={{ uri: iconUrl }} style={s.img} resizeMode="cover" />
+          : (
+            <Animated.View style={[s.ph, { opacity: op }]}>
+              <Ionicons name="sparkles-outline" size={20} color={colors.gold.dim} />
+            </Animated.View>
+          )
+        }
+        {collected && (
+          <View style={s.check}>
+            <Ionicons name="checkmark-circle" size={15} color={colors.fel.bright} />
+          </View>
+        )}
+        {sc && (
+          <View style={[s.srcDot, { backgroundColor: sc }]} />
+        )}
       </View>
       <View style={s.info}>
         <Text style={s.name} numberOfLines={2}>{name}</Text>
-        {sourceType&&<View style={[s.badge,{backgroundColor:sc+'15'}]}><Text style={[s.badgeT,{color:sc}]}>{src[sourceType]||sourceType}</Text></View>}
+        {sourceType && sc && (
+          <View style={[s.badge, { backgroundColor: sc + '20', borderColor: sc + '40' }]}>
+            <Text style={[s.badgeT, { color: sc }]}>{src[sourceType] || sourceType}</Text>
+          </View>
+        )}
       </View>
-      {collected===false&&<View style={s.dim}/>}
+      {collected === false && <View style={s.dim} />}
     </Pressable>
   );
 }
 
 const s = StyleSheet.create({
-  wrap:{backgroundColor:colors.bg.secondary,borderRadius:radii.md,borderWidth:1,borderColor:colors.border.default,overflow:'hidden',...shadows.card},
-  collected:{borderColor:colors.fel.dim},
-  pressed:{opacity:0.85,transform:[{scale:0.96}]},
-  imgWrap:{aspectRatio:1,backgroundColor:colors.bg.primary},
-  img:{width:'100%',height:'100%'},
-  ph:{width:'100%',height:'100%',alignItems:'center',justifyContent:'center',backgroundColor:colors.bg.tertiary},
-  check:{position:'absolute',top:4,right:4,backgroundColor:colors.bg.primary+'DD',borderRadius:radii.full,padding:1},
-  info:{padding:spacing.sm,gap:2},
-  name:{fontSize:11,fontWeight:'600',color:colors.text.primary,lineHeight:14},
-  badge:{alignSelf:'flex-start',paddingHorizontal:4,paddingVertical:1,borderRadius:radii.sm,marginTop:2},
-  badgeT:{fontSize:9,fontWeight:'700',letterSpacing:0.4,textTransform:'uppercase'},
-  dim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(8,9,13,0.4)'},
+  wrap: {
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  collected: { borderColor: colors.fel.dim + 'CC' },
+  pressed: { opacity: 0.8, transform: [{ scale: 0.95 }] },
+  imgWrap: { aspectRatio: 1, backgroundColor: colors.bg.tertiary },
+  img: { width: '100%', height: '100%' },
+  ph: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  check: { position: 'absolute', top: 3, right: 3, backgroundColor: colors.bg.primary + 'CC', borderRadius: radii.full, padding: 1 },
+  srcDot: { position: 'absolute', bottom: 4, right: 4, width: 6, height: 6, borderRadius: 3, opacity: 0.9 },
+  info: { padding: spacing.sm, gap: 3 },
+  name: { fontSize: 11, fontWeight: '600', color: colors.text.primary, lineHeight: 14 },
+  badge: { alignSelf: 'flex-start', paddingHorizontal: 5, paddingVertical: 2, borderRadius: radii.sm, borderWidth: 1 },
+  badgeT: { fontSize: 9, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
+  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,8,15,0.45)' },
 });

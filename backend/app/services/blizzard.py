@@ -151,6 +151,10 @@ class BlizzardAPI:
         resp.raise_for_status()
         return resp.json()
 
+    async def get_user_wow_characters(self, access_token: str) -> dict:
+        """Get all WoW characters for the authenticated Battle.net user."""
+        return await self._profile_request("/profile/user/wow", access_token=access_token)
+
     async def close(self):
         await self._http.aclose()
 

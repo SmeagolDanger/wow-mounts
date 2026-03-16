@@ -254,7 +254,11 @@ async def get_mount_detail(mount_id: int, db: AsyncSession = Depends(get_db)):
     if cached and cached.raw_data:
         age = (datetime.now(UTC) - cached.cached_at.replace(tzinfo=UTC)).total_seconds()
         if age < settings.MOUNT_DETAIL_TTL:
-            return cached.raw_data
+            data = dict(cached.raw_data)
+            # Inject icon_url from the DB column if the JSON blob is missing it
+            if not data.get("icon_url") and cached.icon_url:
+                data["icon_url"] = cached.icon_url
+            return data
 
     try:
         data = await blizzard_api.get_mount_detail(mount_id)

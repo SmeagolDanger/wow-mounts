@@ -33,6 +33,7 @@ class ApiService {
   async getMountDetail(id:number) { return this.request<any>(`/mounts/${id}`); }
   async lookupCharacter(realm:string,name:string,region='us') { return this.request<CharLookup>('/characters/lookup',{},{realm,name,region}); }
   async getRealms() { return this.request<{realms:{id:number;name:string;slug:string}[]}>('/characters/realms'); }
+  async getMyCharacters() { return this.request<{characters:WowChar[];has_bnet:boolean}>('/characters/mine'); }
   async getFavorites() { return this.request<{characters:FavChar[]}>('/characters/favorites'); }
   async addFavorite(rs:string,cn:string,r='us') { return this.request<{id:number}>('/characters/favorites',{method:'POST'},{realm_slug:rs,character_name:cn,region:r}); }
   async removeFavorite(id:number) { return this.request<{deleted:boolean}>(`/characters/favorites/${id}`,{method:'DELETE'}); }
@@ -43,6 +44,7 @@ class ApiService {
 }
 
 export interface MountSummary { id:number; name:string; description?:string; source_type?:string; faction?:string; icon_url?:string; }
+export interface WowChar { name:string; realm_slug:string; realm:string; level:number; class_name:string; race_name:string; faction:string; }
 export interface CharLookup { name:string; realm:string; realm_slug:string; level:number; race:string; class:string; faction:string; avatar_url:string|null; mounts:{mount:{id:number;name:string}}[]|null; mount_count:number|null; }
 export interface FavChar { id:number; realm_slug:string; character_name:string; region:string; class_name:string; race_name:string; level:number; avatar_url:string|null; is_primary:boolean; }
 export interface FarmTask { id:number; title:string; description?:string; mount_id?:number; source_type?:string; zone_name?:string; reset_type:string; completed:boolean; completed_at?:string; notes?:string; sort_order:number; }

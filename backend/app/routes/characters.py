@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import FavoriteCharacter
+from app.models import FavoriteCharacter, User
 from app.routes.auth import _extract_token, decode_jwt
 from app.services.blizzard import blizzard_api
 
@@ -75,6 +75,51 @@ async def get_realms():
         return {"realms": [{"id": r.get("id"), "name": r.get("name"), "slug": r.get("slug")} for r in realms]}
     except Exception as e:
         raise HTTPException(502, f"Failed to fetch realms: {e}") from e
+
+
+# ── My WoW Characters (requires Battle.net auth) ────────────────────
+
+
+@router.get("/mine")
+async def get_my_characters(
+    token: str = Depends(_extract_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the authenticated user's WoW characters using their stored Battle.net token."""
+    payload = decode_jwt(token)
+    user_id = int(payload["sub"])
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user or not user.bnet_access_token:
+        return {"characters": [], "has_bnet": False}
+
+    try:
+        data = await blizzard_api.get_user_wow_characters(user.bnet_access_token)
+    except Exception as e:
+        logger.warning("Failed to fetch WoW characters for user %d: %s", user_id, e)
+        return {"characters": [], "has_bnet": True}
+
+    characters = []
+    for account in data.get("wow_accounts", []):
+        for char in account.get("characters", []):
+            if char.get("level", 0) < 10:
+                continue
+            characters.append(
+                {
+                    "name": char.get("name"),
+                    "realm_slug": char.get("realm", {}).get("slug"),
+                    "realm": char.get("realm", {}).get("name"),
+                    "level": char.get("level"),
+                    "class_name": char.get("playable_class", {}).get("name"),
+                    "race_name": char.get("playable_race", {}).get("name"),
+                    "faction": char.get("faction", {}).get("name"),
+                }
+            )
+
+    characters.sort(key=lambda c: c.get("level", 0), reverse=True)
+    return {"characters": characters, "has_bnet": True}
 
 
 # ── Favorites (requires auth) ───────────────────────────────────────
