@@ -85,13 +85,16 @@ export default function CollectionScreen() {
   useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
+    const charFaction = selectedChar?.faction?.toLowerCase();
     let r = mounts;
+    // Hard faction filter — never show opposing-faction-only mounts
+    if (charFaction) r = r.filter(m => !m.faction || m.faction === charFaction);
     if (search.trim()) { const q = search.toLowerCase(); r = r.filter(m => m.name.toLowerCase().includes(q)); }
     if (filter === 'collected') r = r.filter(m => collectedIds.has(m.id));
     else if (filter === 'missing') r = r.filter(m => !collectedIds.has(m.id));
     if (srcFilter) r = r.filter(m => m.source_type === srcFilter);
     return r;
-  }, [mounts, search, filter, srcFilter, collectedIds]);
+  }, [mounts, search, filter, srcFilter, collectedIds, selectedChar]);
 
   const srcTypes = useMemo(() => {
     const s = new Set<string>(); mounts.forEach(m => m.source_type && s.add(m.source_type)); return Array.from(s).sort();
