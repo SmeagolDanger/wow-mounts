@@ -108,6 +108,7 @@ export default function CollectionScreen() {
     return (
       <View style={{ width: COL }}>
         <MountCard id={item.id} name={item.name} iconUrl={icon} sourceType={item.source_type}
+          faction={item.faction}
           collected={selectedChar ? collectedIds.has(item.id) : undefined}
           onPress={() => setSelected(item.id)} />
       </View>

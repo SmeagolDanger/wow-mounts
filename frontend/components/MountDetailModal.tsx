@@ -159,9 +159,9 @@ export default function MountDetailModal({ mountId, visible, onClose, onFarmChan
                 {/* Badges row */}
                 <View style={z.badgeRow}>
                   {factionInfo && (
-                    <View style={[z.badge, { borderColor: factionInfo.color + '60', backgroundColor: factionInfo.color + '18' }]}>
-                      <Ionicons name="shield" size={10} color={factionInfo.color} />
-                      <Text style={[z.badgeT, { color: factionInfo.color }]}>{factionInfo.label}</Text>
+                    <View style={[z.badge, z.factionBadge, { borderColor: factionInfo.color + '70', backgroundColor: factionInfo.color + '22' }]}>
+                      <Ionicons name="shield" size={14} color={factionInfo.color} />
+                      <Text style={[z.badgeT, z.factionBadgeT, { color: factionInfo.color }]}>{factionInfo.label}</Text>
                     </View>
                   )}
                   {info && (
@@ -302,6 +302,8 @@ const z = StyleSheet.create({
   badgeDot: { width: 6, height: 6, borderRadius: 3 },
   badgeT: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
   badgeTDim: { fontSize: 11, fontWeight: '600', color: colors.text.tertiary },
+  factionBadge: { paddingHorizontal: spacing.lg, paddingVertical: 8, borderWidth: 1.5 },
+  factionBadgeT: { fontSize: 13, letterSpacing: 0.6 },
 
   // Difficulty bar
   diffRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, width: '100%', marginBottom: spacing.lg, paddingHorizontal: spacing.xs },
