@@ -11,16 +11,34 @@ const { width: SW } = Dimensions.get('window');
 const IMG_W = SW - spacing.xl * 4;
 const IMG_H = Math.round(IMG_W * 0.6);
 
-const SOURCE_INFO: Record<string, { label: string; color: string; rank: number; reset: string; tip: string }> = {
-  vendor:      { label: 'Vendor',       color: '#E2E8F0', rank: 1, reset: 'none',   tip: 'Buy directly from a vendor. Check WoWhead for the exact vendor location and cost.' },
-  quest:       { label: 'Quest',        color: '#FDE047', rank: 2, reset: 'none',   tip: 'Reward from a questline. Typically one-time per character or account. Check WoWhead for the quest chain.' },
-  achievement: { label: 'Achievement',  color: '#F5B800', rank: 3, reset: 'none',   tip: 'Earned by completing a specific in-game achievement. Some require collection milestones or challenge completions.' },
-  reputation:  { label: 'Reputation',   color: '#4ADE80', rank: 4, reset: 'none',   tip: 'Purchased from a reputation vendor. Typically requires Exalted (sometimes Revered) standing with a specific faction. Check WoWhead for the exact faction and vendor.' },
-  promotion:   { label: 'Promotion',    color: '#22D3EE', rank: 5, reset: 'none',   tip: 'Obtained through the Battle.net Shop, Twitch drops, or other promotions. Check the official WoW website for active offers.' },
-  drop:        { label: 'World Drop',   color: '#94A3B8', rank: 6, reset: 'none',   tip: 'Random drop from open-world enemies with a very low drop rate. Often more efficient to purchase from the Auction House.' },
-  dungeon:     { label: 'Dungeon',      color: '#38BDF8', rank: 7, reset: 'daily',  tip: 'Drops from a specific dungeon boss. Farmable once per day per character — run on alts to increase your weekly chances.' },
-  raid:        { label: 'Raid',         color: '#C084FC', rank: 8, reset: 'weekly', tip: 'Drops from a raid boss. One attempt per character per week (weekly lockout). Farm with multiple characters to boost odds.' },
-  world_boss:  { label: 'World Boss',   color: '#FB923C', rank: 9, reset: 'weekly', tip: 'Drops from a weekly world boss. Roughly 1–3% drop rate. Only one kill per character per week rewards loot.' },
+const SOURCE_INFO: Record<string, { label: string; color: string; rank: number; reset: string; tip: string; examples: string }> = {
+  vendor:      { label: 'Vendor',       color: '#E2E8F0', rank: 1, reset: 'none',
+    tip: 'Purchased directly from an in-game vendor. No RNG — just gold or a currency.',
+    examples: 'e.g. Argent Tournament mounts, PvP mounts, Trading Post' },
+  quest:       { label: 'Quest',        color: '#FDE047', rank: 2, reset: 'none',
+    tip: 'Granted as a quest reward. Usually one-time per character.',
+    examples: 'e.g. Legendary cloaks, class hall campaign rewards' },
+  achievement: { label: 'Achievement',  color: '#F5B800', rank: 3, reset: 'none',
+    tip: 'Awarded for completing a specific achievement — often collection or progression milestones.',
+    examples: 'e.g. Mountain o\' Mounts, What A Long Strange Trip, Ahead of the Curve' },
+  reputation:  { label: 'Reputation',   color: '#4ADE80', rank: 4, reset: 'none',
+    tip: 'Purchased from a faction vendor once you reach the required standing (usually Exalted).',
+    examples: 'e.g. Wintersaber Trainers, Golden Lotus, The Valarjar, Court of Farondis' },
+  promotion:   { label: 'Promotion',    color: '#22D3EE', rank: 5, reset: 'none',
+    tip: 'Obtained via the Battle.net Shop, Twitch drops, BlizzCon, or cross-game promotions.',
+    examples: 'e.g. Blaze of Glory, Lucky Yun, Tyrael\'s Charger' },
+  drop:        { label: 'World Drop',   color: '#94A3B8', rank: 6, reset: 'none',
+    tip: 'Very low-chance drop from open-world enemies. Often faster to buy on the Auction House.',
+    examples: 'e.g. Reins of the Green Wing Macaw, Reins of the Blue Mechanostrider' },
+  dungeon:     { label: 'Dungeon',      color: '#38BDF8', rank: 7, reset: 'daily',
+    tip: 'Drops from a specific dungeon boss. One attempt per day per character — run on every alt to stack attempts.',
+    examples: 'e.g. Raven Lord (Sethekk Halls), Hawkstrider (Magisters\' Terrace), Bronze Drake (CoS), Blue Proto-Drake (UP)' },
+  raid:        { label: 'Raid',         color: '#C084FC', rank: 8, reset: 'weekly',
+    tip: 'Drops from a raid boss. One attempt per character per week. Farm on every 80–85 alt for more chances.',
+    examples: 'e.g. Invincible (ICC), Mimiron\'s Head (Ulduar), Ashes of Al\'ar (Tempest Keep), Ji-Kun (ToT)' },
+  world_boss:  { label: 'World Boss',   color: '#FB923C', rank: 9, reset: 'weekly',
+    tip: 'Drops from a world boss or rare spawn. ~1–3% chance, weekly lockout on most. Check the respawn timer.',
+    examples: 'e.g. Time-Lost Proto-Drake (Storm Peaks), Sha of Anger (Kun-Lai), Rukhmar (Spires of Arak)' },
 };
 
 const FACTION: Record<string, { label: string; color: string }> = {
@@ -196,6 +214,7 @@ export default function MountDetailModal({ mountId, visible, onClose, onFarmChan
                   <View style={z.block}>
                     <Text style={z.blockLabel}>HOW TO OBTAIN</Text>
                     <Text style={z.blockText}>{info.tip}</Text>
+                    <Text style={z.blockExamples}>{info.examples}</Text>
                   </View>
                 )}
 
@@ -326,6 +345,7 @@ const z = StyleSheet.create({
   blockHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   blockLabel: { fontSize: 9, fontWeight: '700', color: colors.text.tertiary, letterSpacing: 1.2, textTransform: 'uppercase' },
   blockText: { ...typography.caption, color: colors.text.secondary, lineHeight: 18 },
+  blockExamples: { fontSize: 10, color: colors.text.tertiary, lineHeight: 16, fontStyle: 'italic', marginTop: 2 },
   loreText: { ...typography.caption, color: colors.text.secondary, lineHeight: 18, fontStyle: 'italic' },
 
   // Farm buttons

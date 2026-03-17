@@ -13,107 +13,116 @@ import { useApp } from '../../contexts/AppContext';
 
 interface Route { zone: string; tasks: FarmTask[]; completed: number; expansion?: string; order: number; }
 
-// WoW geographic routing data — expansion order + sort within expansion
-// Rough real-world travel order for mount farmers
-const ZONE_GEO: { zone: string; expansion: string; order: number; type: string }[] = [
-  // Classic
-  { zone: 'Molten Core',             expansion: 'Classic',      order: 10, type: 'raid' },
-  { zone: 'Blackwing Lair',          expansion: 'Classic',      order: 11, type: 'raid' },
-  { zone: "Ruins of Ahn'Qiraj",      expansion: 'Classic',      order: 12, type: 'raid' },
-  { zone: "Temple of Ahn'Qiraj",     expansion: 'Classic',      order: 13, type: 'raid' },
-  // The Burning Crusade
-  { zone: 'Karazhan',                expansion: 'TBC',          order: 20, type: 'raid' },
-  { zone: 'Gruul\'s Lair',           expansion: 'TBC',          order: 21, type: 'raid' },
-  { zone: 'Serpentshrine Cavern',    expansion: 'TBC',          order: 22, type: 'raid' },
-  { zone: 'Tempest Keep',            expansion: 'TBC',          order: 23, type: 'raid' },
-  { zone: 'Mount Hyjal',             expansion: 'TBC',          order: 24, type: 'raid' },
-  { zone: 'Black Temple',            expansion: 'TBC',          order: 25, type: 'raid' },
-  { zone: 'Sunwell Plateau',         expansion: 'TBC',          order: 26, type: 'raid' },
-  { zone: 'Magisters\' Terrace',     expansion: 'TBC',          order: 27, type: 'dungeon' },
-  { zone: 'Sethekk Halls',           expansion: 'TBC',          order: 28, type: 'dungeon' },
-  // Wrath of the Lich King
-  { zone: 'Naxxramas',               expansion: 'WotLK',        order: 30, type: 'raid' },
-  { zone: 'The Eye of Eternity',     expansion: 'WotLK',        order: 31, type: 'raid' },
-  { zone: 'Ulduar',                  expansion: 'WotLK',        order: 32, type: 'raid' },
-  { zone: 'Trial of the Crusader',   expansion: 'WotLK',        order: 33, type: 'raid' },
-  { zone: 'Icecrown Citadel',        expansion: 'WotLK',        order: 34, type: 'raid' },
-  { zone: 'The Ruby Sanctum',        expansion: 'WotLK',        order: 35, type: 'raid' },
-  { zone: 'The Oculus',              expansion: 'WotLK',        order: 36, type: 'dungeon' },
-  { zone: 'Utgarde Pinnacle',        expansion: 'WotLK',        order: 37, type: 'dungeon' },
-  { zone: 'Vault of Archavon',       expansion: 'WotLK',        order: 38, type: 'raid' },
-  // Cataclysm
-  { zone: "Onyxia's Lair",           expansion: 'Cataclysm',    order: 40, type: 'raid' },
-  { zone: 'Baradin Hold',            expansion: 'Cataclysm',    order: 41, type: 'raid' },
-  { zone: 'Blackwing Descent',       expansion: 'Cataclysm',    order: 42, type: 'raid' },
-  { zone: 'Throne of the Four Winds',expansion: 'Cataclysm',    order: 43, type: 'raid' },
-  { zone: 'Firelands',               expansion: 'Cataclysm',    order: 44, type: 'raid' },
-  { zone: 'Dragon Soul',             expansion: 'Cataclysm',    order: 45, type: 'raid' },
-  { zone: 'Zul\'Gurub',              expansion: 'Cataclysm',    order: 46, type: 'raid' },
-  { zone: 'Vortex Pinnacle',         expansion: 'Cataclysm',    order: 47, type: 'dungeon' },
-  // Mists of Pandaria
-  { zone: "Mogu'shan Vaults",        expansion: 'MoP',          order: 50, type: 'raid' },
-  { zone: 'Heart of Fear',           expansion: 'MoP',          order: 51, type: 'raid' },
-  { zone: 'Terrace of Endless Spring',expansion:'MoP',          order: 52, type: 'raid' },
-  { zone: 'Throne of Thunder',       expansion: 'MoP',          order: 53, type: 'raid' },
-  { zone: 'Siege of Orgrimmar',      expansion: 'MoP',          order: 54, type: 'raid' },
-  // Warlords of Draenor
-  { zone: "Highmaul",                expansion: 'WoD',          order: 60, type: 'raid' },
-  { zone: 'Blackrock Foundry',       expansion: 'WoD',          order: 61, type: 'raid' },
-  { zone: "Hellfire Citadel",        expansion: 'WoD',          order: 62, type: 'raid' },
-  // Legion
-  { zone: 'The Emerald Nightmare',   expansion: 'Legion',       order: 70, type: 'raid' },
-  { zone: 'The Nighthold',           expansion: 'Legion',       order: 71, type: 'raid' },
-  { zone: 'Tomb of Sargeras',        expansion: 'Legion',       order: 72, type: 'raid' },
-  { zone: 'Antorus the Burning Throne',expansion:'Legion',      order: 73, type: 'raid' },
-  { zone: 'Return to Karazhan',      expansion: 'Legion',       order: 74, type: 'dungeon' },
-  { zone: 'Court of Stars',          expansion: 'Legion',       order: 75, type: 'dungeon' },
-  // Battle for Azeroth
-  { zone: "Uldir",                   expansion: 'BfA',          order: 80, type: 'raid' },
-  { zone: "Battle of Dazar'alor",    expansion: 'BfA',          order: 81, type: 'raid' },
-  { zone: "Crucible of Storms",      expansion: 'BfA',          order: 82, type: 'raid' },
-  { zone: "The Eternal Palace",      expansion: 'BfA',          order: 83, type: 'raid' },
-  { zone: "Ny'alotha",               expansion: 'BfA',          order: 84, type: 'raid' },
-  // Shadowlands
-  { zone: "Castle Nathria",          expansion: 'Shadowlands',  order: 90, type: 'raid' },
-  { zone: "Sanctum of Domination",   expansion: 'Shadowlands',  order: 91, type: 'raid' },
-  { zone: "Sepulcher of the First Ones",expansion:'Shadowlands', order: 92, type: 'raid' },
-  // Dragonflight
-  { zone: "Vault of the Incarnates", expansion: 'Dragonflight', order: 100, type: 'raid' },
-  { zone: "Aberrus",                 expansion: 'Dragonflight', order: 101, type: 'raid' },
-  { zone: "Amirdrassil",             expansion: 'Dragonflight', order: 102, type: 'raid' },
-  // The War Within
-  { zone: "Nerub-ar Palace",         expansion: 'The War Within', order: 110, type: 'raid' },
-  // World Bosses (by expansion, farmed weekly)
-  { zone: 'World Bosses (Classic)',  expansion: 'Classic',      order: 15, type: 'world_boss' },
-  { zone: 'World Bosses (WoD)',      expansion: 'WoD',          order: 65, type: 'world_boss' },
-  { zone: 'World Bosses (Legion)',   expansion: 'Legion',       order: 76, type: 'world_boss' },
-  { zone: 'World Bosses (BfA)',      expansion: 'BfA',          order: 85, type: 'world_boss' },
-  { zone: 'World Bosses (DF)',       expansion: 'Dragonflight', order: 103, type: 'world_boss' },
-  // Other
+// WoW geographic routing data — verified instance names with confirmed mount drops
+// Ordered by expansion era to minimize portal/travel time during farm runs
+const ZONE_GEO: { zone: string; expansion: string; order: number; type: string; note?: string }[] = [
+  // ── Classic ────────────────────────────────────────────────────────────────
+  { zone: 'Stratholme',              expansion: 'Classic',      order:  5, type: 'dungeon',    note: "Rivendare's Deathcharger — Baron Rivendare" },
+  { zone: "Onyxia's Lair",           expansion: 'Classic',      order:  6, type: 'raid',       note: 'Onyxian Drake — Onyxia' },
+  { zone: 'Molten Core',             expansion: 'Classic',      order:  7, type: 'raid' },
+  { zone: 'Blackwing Lair',          expansion: 'Classic',      order:  8, type: 'raid' },
+  { zone: "Ruins of Ahn'Qiraj",      expansion: 'Classic',      order:  9, type: 'raid' },
+  { zone: "Temple of Ahn'Qiraj",     expansion: 'Classic',      order: 10, type: 'raid',       note: 'Qiraji Battle Tanks — trash & bosses (usable in AQ only)' },
+  // ── The Burning Crusade ────────────────────────────────────────────────────
+  { zone: 'Sethekk Halls',           expansion: 'TBC',          order: 20, type: 'dungeon',    note: 'Raven Lord — Anzu (Heroic)' },
+  { zone: "Magisters' Terrace",      expansion: 'TBC',          order: 21, type: 'dungeon',    note: 'Swift White Hawkstrider — Kael\'thas (Heroic)' },
+  { zone: 'Karazhan',                expansion: 'TBC',          order: 22, type: 'raid',       note: 'Fiery Warhorse — Attumen the Huntsman' },
+  { zone: 'Serpentshrine Cavern',    expansion: 'TBC',          order: 23, type: 'raid' },
+  { zone: 'Tempest Keep',            expansion: 'TBC',          order: 24, type: 'raid',       note: "Ashes of Al'ar — Kael'thas Sunstrider" },
+  { zone: 'Battle for Mount Hyjal',  expansion: 'TBC',          order: 25, type: 'raid' },
+  { zone: 'Black Temple',            expansion: 'TBC',          order: 26, type: 'raid' },
+  { zone: 'Sunwell Plateau',         expansion: 'TBC',          order: 27, type: 'raid' },
+  // ── Wrath of the Lich King ────────────────────────────────────────────────
+  { zone: 'Culling of Stratholme',   expansion: 'WotLK',        order: 30, type: 'dungeon',    note: 'Bronze Drake — Infinite Corrupter (Heroic timed)' },
+  { zone: 'Utgarde Pinnacle',        expansion: 'WotLK',        order: 31, type: 'dungeon',    note: 'Blue Proto-Drake — Skadi the Ruthless (Heroic)' },
+  { zone: 'The Oculus',              expansion: 'WotLK',        order: 32, type: 'dungeon',    note: 'Blue Drake — Cache of the Ley-Guardian (Heroic)' },
+  { zone: 'Vault of Archavon',       expansion: 'WotLK',        order: 33, type: 'raid',       note: 'Grand Black War Mammoth — any boss (requires Wintergrasp control)' },
+  { zone: 'The Obsidian Sanctum',    expansion: 'WotLK',        order: 34, type: 'raid',       note: 'Black/Twilight Drake — Sartharion (with drakes alive)' },
+  { zone: 'The Eye of Eternity',     expansion: 'WotLK',        order: 35, type: 'raid',       note: 'Azure Drake / Blue Drake — Malygos' },
+  { zone: 'Naxxramas',               expansion: 'WotLK',        order: 36, type: 'raid' },
+  { zone: 'Ulduar',                  expansion: 'WotLK',        order: 37, type: 'raid',       note: "Mimiron's Head — Yogg-Saron (25-man, no keepers)" },
+  { zone: 'Trial of the Crusader',   expansion: 'WotLK',        order: 38, type: 'raid',       note: 'Faction mounts — Grand Crusader (Heroic 25)' },
+  { zone: 'Icecrown Citadel',        expansion: 'WotLK',        order: 39, type: 'raid',       note: "Invincible — Arthas (Heroic 25)" },
+  // ── Cataclysm ─────────────────────────────────────────────────────────────
+  { zone: 'Vortex Pinnacle',         expansion: 'Cataclysm',    order: 40, type: 'dungeon',    note: 'Drake of the North Wind — Altairus' },
+  { zone: 'The Stonecore',           expansion: 'Cataclysm',    order: 41, type: 'dungeon',    note: 'Vitreous Stone Drake — Slabhide' },
+  { zone: "Zul'Gurub",               expansion: 'Cataclysm',    order: 42, type: 'raid',       note: 'Armored Razzashi Raptor / Swift Zulian Panther — Bloodlord Mandokir / High Priestess Kilnara' },
+  { zone: "Zul'Aman",                expansion: 'Cataclysm',    order: 43, type: 'raid',       note: 'Amani Battle Bear — timed run' },
+  { zone: 'Blackwing Descent',       expansion: 'Cataclysm',    order: 44, type: 'raid' },
+  { zone: 'Throne of the Four Winds',expansion: 'Cataclysm',    order: 45, type: 'raid',       note: 'Drake of the South Wind — Al\'Akir' },
+  { zone: 'Firelands',               expansion: 'Cataclysm',    order: 46, type: 'raid',       note: 'Pureblood Fire Hawk — Ragnaros · Flametalon of Alysrazor — Alysrazor' },
+  { zone: 'Dragon Soul',             expansion: 'Cataclysm',    order: 47, type: 'raid',       note: 'Blazing Drake / Life-Binder\'s Handmaiden — Deathwing · Experiment 12-B — Ultraxion' },
+  // ── Mists of Pandaria ─────────────────────────────────────────────────────
+  { zone: "Mogu'shan Vaults",        expansion: 'MoP',          order: 50, type: 'raid',       note: 'Astral Cloud Serpent — Elegon' },
+  { zone: 'Throne of Thunder',       expansion: 'MoP',          order: 51, type: 'raid',       note: 'Clutch of Ji-Kun — Ji-Kun · Spawn of Horridon — Horridon' },
+  { zone: 'Siege of Orgrimmar',      expansion: 'MoP',          order: 52, type: 'raid',       note: 'Kor\'kron Juggernaut — Garrosh Hellscream (Mythic)' },
+  { zone: 'Sha of Anger',            expansion: 'MoP',          order: 53, type: 'world_boss', note: 'Heavenly Onyx Cloud Serpent — Sha of Anger (Kun-Lai Summit)' },
+  { zone: 'Nalak',                   expansion: 'MoP',          order: 54, type: 'world_boss', note: 'Thundering Cobalt Cloud Serpent — Nalak (Isle of Thunder)' },
+  { zone: 'Oondasta',                expansion: 'MoP',          order: 55, type: 'world_boss', note: 'Cobalt Primordial Direhorn — Oondasta (Isle of Giants)' },
+  { zone: 'Galleon',                 expansion: 'MoP',          order: 56, type: 'world_boss', note: "Son of Galleon — Salyis's Warband (Valley of the Four Winds)" },
+  { zone: 'Huolon',                  expansion: 'MoP',          order: 57, type: 'world_boss', note: 'Thundering Onyx Cloud Serpent — Huolon (Timeless Isle)' },
+  // ── Warlords of Draenor ───────────────────────────────────────────────────
+  { zone: 'Highmaul',                expansion: 'WoD',          order: 60, type: 'raid' },
+  { zone: 'Blackrock Foundry',       expansion: 'WoD',          order: 61, type: 'raid',       note: 'Ironhoof Destroyer — Blackhand (Mythic)' },
+  { zone: 'Hellfire Citadel',        expansion: 'WoD',          order: 62, type: 'raid',       note: 'Felsteel Annihilator — Archimonde (Mythic)' },
+  { zone: 'Tanaan Jungle',           expansion: 'WoD',          order: 63, type: 'world_boss', note: 'Several mounts — Terrorguard, Deathtalon, Vengeance, Doomroller' },
+  { zone: 'Draenor Rares',           expansion: 'WoD',          order: 64, type: 'world_boss', note: 'Rukhmar (Spires of Arak), Poundfist (Gorgrond), Nakk (Nagrand) and more' },
+  // ── Legion ────────────────────────────────────────────────────────────────
+  { zone: 'Return to Karazhan',      expansion: 'Legion',       order: 70, type: 'dungeon',    note: 'Smoldering Ember Wyrm — Nightbane · Midnight — Attumen' },
+  { zone: 'The Emerald Nightmare',   expansion: 'Legion',       order: 71, type: 'raid' },
+  { zone: 'The Nighthold',           expansion: 'Legion',       order: 72, type: 'raid',       note: 'Felblaze Infernal — Gul\'dan (any) · Hellfire Infernal — Gul\'dan (Mythic)' },
+  { zone: 'Tomb of Sargeras',        expansion: 'Legion',       order: 73, type: 'raid',       note: 'Abyss Worm — Mistress Sassz\'ine' },
+  { zone: 'Antorus, the Burning Throne', expansion: 'Legion',   order: 74, type: 'raid',       note: 'Antoran Charhound — Shatug · Shackled Ur\'zul — Argus (Mythic)' },
+  { zone: 'Antoran Wastes',          expansion: 'Legion',       order: 75, type: 'world_boss', note: 'Several mounts from rare world bosses on Argus' },
+  // ── Battle for Azeroth ────────────────────────────────────────────────────
+  { zone: 'Freehold',                expansion: 'BfA',          order: 80, type: 'dungeon',    note: 'Sharkbait — Harlan Sweete (Mythic)' },
+  { zone: "Kings' Rest",             expansion: 'BfA',          order: 81, type: 'dungeon',    note: 'Tomb Stalker — King Dazar (Mythic)' },
+  { zone: 'The Underrot',            expansion: 'BfA',          order: 82, type: 'dungeon',    note: 'Underrot Crawg — Unbound Abomination (Mythic)' },
+  { zone: "Battle of Dazar'alor",    expansion: 'BfA',          order: 83, type: 'raid',       note: "G.M.O.D. — Mekkatorque · Glacial Tidestorm — Jaina" },
+  { zone: "Ny'alotha",               expansion: 'BfA',          order: 84, type: 'raid',       note: "Ny'alotha Allseer — N'Zoth (Mythic)" },
+  { zone: 'Mechagon',                expansion: 'BfA',          order: 85, type: 'world_boss', note: 'Junkheap Drifter — Rustfeather · Rusty Mechanocrawler — Arachnoid Harvester' },
+  { zone: 'Nazjatar',                expansion: 'BfA',          order: 86, type: 'world_boss', note: 'Silent Glider — Soundless' },
+  { zone: 'Arathi / Darkshore',      expansion: 'BfA',          order: 87, type: 'world_boss', note: 'Highland Mustang, Kaldorei Nightsaber and others from warfront rares' },
+  // ── Shadowlands ───────────────────────────────────────────────────────────
+  { zone: 'Sanctum of Domination',   expansion: 'Shadowlands',  order: 90, type: 'raid',       note: "Sanctum Gloomcharger — The Nine · Vengeance — Sylvanas (Mythic)" },
+  { zone: 'Sepulcher of the First Ones', expansion: 'Shadowlands', order: 91, type: 'raid',    note: 'Zereth Overseer — The Jailer (Mythic)' },
+  { zone: 'The Maw',                 expansion: 'Shadowlands',  order: 92, type: 'world_boss', note: 'Fallen Charger — Fallen Charger · Mawsworn Soulhunter — Gorged Shadehound' },
+  { zone: 'Ardenweald',              expansion: 'Shadowlands',  order: 93, type: 'world_boss', note: 'Arboreal Gulper — Humon\'gozz · Wild Glimmerfur Prowler — Valfir' },
+  { zone: 'Revendreth',              expansion: 'Shadowlands',  order: 94, type: 'world_boss', note: 'Horrid Dredwing — Harika · Hopecrusher Gargon — Hopecrusher' },
+  // ── Dragonflight ──────────────────────────────────────────────────────────
+  { zone: 'Vault of the Incarnates', expansion: 'Dragonflight', order: 100, type: 'raid' },
+  { zone: 'Aberrus, the Shadowed Crucible', expansion: 'Dragonflight', order: 101, type: 'raid' },
+  { zone: "Amirdrassil, the Dream's Hope", expansion: 'Dragonflight', order: 102, type: 'raid', note: "Anu'relos, Flame's Guidance — Fyrakk (Mythic)" },
+  { zone: 'Dragon Isles Rares',      expansion: 'Dragonflight', order: 103, type: 'world_boss', note: 'Liberated Slyvern (Azure Span), Ancient Salamanther (Forbidden Reach) and more' },
+  // ── The War Within ────────────────────────────────────────────────────────
+  { zone: 'Nerub-ar Palace',         expansion: 'The War Within', order: 110, type: 'raid',    note: 'Sureki Skyrazor / Ascendant Skyrazor — Queen Ansurek' },
+  { zone: 'Liberation of Undermine', expansion: 'The War Within', order: 111, type: 'raid',    note: 'Prototype A.S.M.R. / The Big G — Chrome King Gallywix' },
+  { zone: 'Khaz Algar Rares',        expansion: 'The War Within', order: 112, type: 'world_boss', note: 'Alunira (Isle of Dorn), Ol\' Mole Rufus (Ringing Deeps) and more' },
+  // ── Non-location sources ───────────────────────────────────────────────────
   { zone: 'Reputation Vendors',      expansion: 'Various',      order: 200, type: 'reputation' },
   { zone: 'Achievements',            expansion: 'Various',      order: 201, type: 'achievement' },
   { zone: 'Vendors',                 expansion: 'Various',      order: 202, type: 'vendor' },
   { zone: 'Questlines',              expansion: 'Various',      order: 203, type: 'quest' },
 ];
 
-const ZONE_ORDER = new Map(ZONE_GEO.map(z => [z.zone, z.order]));
+const ZONE_ORDER     = new Map(ZONE_GEO.map(z => [z.zone, z.order]));
 const ZONE_EXPANSION = new Map(ZONE_GEO.map(z => [z.zone, z.expansion]));
+const ZONE_NOTE      = new Map(ZONE_GEO.map(z => [z.zone, z.note]));
 
-// Source type → best geographic zone assignment for auto-plan
-const SOURCE_ZONES: Record<string, string[]> = {
-  raid: ['Icecrown Citadel','Ulduar','Throne of Thunder','The Nighthold','Tempest Keep','Dragon Soul','Firelands','Naxxramas',"Mogu'shan Vaults","Castle Nathria"],
-  dungeon: ['Magisters\' Terrace','Sethekk Halls','The Oculus','Utgarde Pinnacle','Return to Karazhan','Vortex Pinnacle'],
-  world_boss: ['World Bosses (WoD)','World Bosses (Legion)','World Bosses (BfA)','World Bosses (DF)'],
-  reputation: ['Reputation Vendors'],
-  achievement: ['Achievements'],
-  vendor: ['Vendors'],
-  quest: ['Questlines'],
+// Default zone per source type — shown when specific zone is unknown
+// Ordered by farming popularity (most-farmed instance first)
+const SOURCE_ZONES: Record<string, string> = {
+  raid:        'Icecrown Citadel',
+  dungeon:     'Sethekk Halls',
+  world_boss:  'Sha of Anger',
+  reputation:  'Reputation Vendors',
+  achievement: 'Achievements',
+  vendor:      'Vendors',
+  quest:       'Questlines',
 };
 
 function getBestZone(sourceType: string): string {
-  const options = SOURCE_ZONES[sourceType];
-  if (!options || options.length === 0) return 'Unknown';
-  return options[0]; // Return the most commonly farmed zone for this type
+  return SOURCE_ZONES[sourceType] ?? 'Unknown';
 }
 
 const ALL_SOURCE_TYPES = ['raid','dungeon','world_boss','reputation','achievement','vendor','quest'];
@@ -320,6 +329,7 @@ export default function RoutesScreen() {
                       <View style={z.rInfo}>
                         <Text style={z.rZone}>{r.zone}</Text>
                         {r.expansion && <Text style={z.rExp}>{r.expansion}</Text>}
+                        {ZONE_NOTE.get(r.zone) && <Text style={z.rNote} numberOfLines={1}>{ZONE_NOTE.get(r.zone)}</Text>}
                         <Text style={z.rMeta}>{r.tasks.length} task{r.tasks.length !== 1 ? 's' : ''} — {r.completed} done</Text>
                         <View style={z.pBar}><View style={[z.pFill, {width:`${pct}%`, backgroundColor: done ? colors.fel.primary : colors.gold.primary}]}/></View>
                       </View>
@@ -484,6 +494,7 @@ const z = StyleSheet.create({
   rInfo:{flex:1,gap:2},
   rZone:{...typography.subheading,fontSize:14},
   rExp:{fontSize:10,color:colors.frost.primary,fontWeight:'600',opacity:0.8},
+  rNote:{fontSize:10,color:colors.text.tertiary,fontStyle:'italic'},
   rMeta:{fontSize:11,color:colors.text.secondary},
   pBar:{height:3,backgroundColor:colors.bg.primary,borderRadius:2,marginTop:3,overflow:'hidden'},
   pFill:{height:3,borderRadius:2},
