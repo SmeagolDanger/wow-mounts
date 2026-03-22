@@ -98,8 +98,15 @@ async def get_my_characters(
     try:
         data = await blizzard_api.get_user_wow_characters(user.bnet_access_token)
     except Exception as e:
+        error_str = str(e)
+        is_auth_error = "401" in error_str or "403" in error_str or "Unauthorized" in error_str
+        if is_auth_error:
+            logger.info("Battle.net token expired for user %d, clearing stored token", user_id)
+            user.bnet_access_token = None
+            await db.commit()
+            return {"characters": [], "has_bnet": True, "token_expired": True}
         logger.warning("Failed to fetch WoW characters for user %d: %s", user_id, e)
-        return {"characters": [], "has_bnet": True}
+        return {"characters": [], "has_bnet": True, "token_expired": False}
 
     characters = []
     for account in data.get("wow_accounts", []):
@@ -119,7 +126,7 @@ async def get_my_characters(
             )
 
     characters.sort(key=lambda c: c.get("level", 0), reverse=True)
-    return {"characters": characters, "has_bnet": True}
+    return {"characters": characters, "has_bnet": True, "token_expired": False}
 
 
 # ── Favorites (requires auth) ───────────────────────────────────────

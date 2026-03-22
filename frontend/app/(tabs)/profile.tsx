@@ -44,9 +44,9 @@ export default function ProfileScreen() {
             <Ionicons name={hasBnet?'shield-checkmark':'shield-outline'} size={24} color={hasBnet?colors.gold.primary:colors.text.tertiary}/>
             <View style={z.bInfo}>
               <Text style={z.bTag}>{hasBnet?btag:'Link Battle.net'}</Text>
-              <Text style={z.bSub}>{hasBnet?'Account linked — characters auto-load in the Mount picker':'Optional — enables character auto-load'}</Text>
+              <Text style={z.bSub}>{hasBnet?'Account linked — tap Re-link if characters stop loading':'Optional — enables character auto-load'}</Text>
             </View>
-            {!hasBnet&&<Pressable onPress={bnetLink} style={z.linkBtn}><Text style={z.linkBtnT}>Link</Text></Pressable>}
+            <Pressable onPress={bnetLink} style={z.linkBtn}><Text style={z.linkBtnT}>{hasBnet?'Re-link':'Link'}</Text></Pressable>
           </View>
         </Card>
         <View style={z.sec}><Text style={z.secT}>Search Character</Text>

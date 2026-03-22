@@ -33,7 +33,7 @@ class ApiService {
   async getMountDetail(id:number) { return this.request<any>(`/mounts/${id}`); }
   async lookupCharacter(realm:string,name:string,region='us') { return this.request<CharLookup>('/characters/lookup',{},{realm,name,region}); }
   async getRealms() { return this.request<{realms:{id:number;name:string;slug:string}[]}>('/characters/realms'); }
-  async getMyCharacters() { return this.request<{characters:WowChar[];has_bnet:boolean}>('/characters/mine'); }
+  async getMyCharacters() { return this.request<{characters:WowChar[];has_bnet:boolean;token_expired?:boolean}>('/characters/mine'); }
   async getFavorites() { return this.request<{characters:FavChar[]}>('/characters/favorites'); }
   async addFavorite(rs:string,cn:string,r='us') { return this.request<{id:number}>('/characters/favorites',{method:'POST'},{realm_slug:rs,character_name:cn,region:r}); }
   async removeFavorite(id:number) { return this.request<{deleted:boolean}>(`/characters/favorites/${id}`,{method:'DELETE'}); }

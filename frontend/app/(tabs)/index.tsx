@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, StyleSheet, ScrollView, Pressable, TextInput,
-  RefreshControl, ActivityIndicator, Dimensions, Modal, Image, Alert,
+  RefreshControl, ActivityIndicator, Dimensions, Modal, Image, Alert, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +36,7 @@ export default function CollectionScreen() {
   const [myChars, setMyChars] = useState<WowChar[]>([]);
   const [favorites, setFavorites] = useState<FavChar[]>([]);
   const [hasBnet, setHasBnet] = useState(false);
+  const [tokenExpired, setTokenExpired] = useState(false);
   const [loadingPicker, setLoadingPicker] = useState(false);
   // Inline search in picker
   const [pickerRealm, setPickerRealm] = useState('');
@@ -84,7 +85,7 @@ export default function CollectionScreen() {
         api.getMyCharacters(),
         api.getFavorites(),
       ]);
-      if (charsRes.status === 'fulfilled') { setMyChars(charsRes.value.characters); setHasBnet(charsRes.value.has_bnet); }
+      if (charsRes.status === 'fulfilled') { setMyChars(charsRes.value.characters); setHasBnet(charsRes.value.has_bnet); setTokenExpired(!!charsRes.value.token_expired); }
       if (favsRes.status === 'fulfilled') setFavorites(favsRes.value.characters);
     } catch {} finally { setLoadingPicker(false); }
   }, []);
@@ -290,6 +291,19 @@ export default function CollectionScreen() {
                   </>
                 )}
 
+                {/* Token expired banner */}
+                {tokenExpired && hasBnet && (
+                  <Pressable onPress={async () => { try { const { authorize_url } = await api.getBnetLoginUrl(); Linking.openURL(authorize_url); } catch { Alert.alert('Error', 'Failed to start login'); } }}
+                    style={z.expiredBanner}>
+                    <Ionicons name="warning-outline" size={16} color="#F59E0B" />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={z.expiredTitle}>Battle.net session expired</Text>
+                      <Text style={z.expiredSub}>Tap to re-link and load your characters</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#F59E0B" />
+                  </Pressable>
+                )}
+
                 {/* Search — always shown, primary way to add characters */}
                 <Text style={z.pickerSection}>SEARCH CHARACTER</Text>
                 <View style={z.pickerSearchRow}>
@@ -423,6 +437,9 @@ const z = StyleSheet.create({
   favRealm: { fontSize: 10, color: colors.text.tertiary },
   mainBadge: { backgroundColor: colors.gold.muted, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.gold.dim },
   mainBadgeT: { fontSize: 8, fontWeight: '800', color: colors.gold.primary, letterSpacing: 1 },
+  expiredBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.md, marginTop: spacing.md, padding: spacing.md, borderRadius: radii.md, backgroundColor: '#F59E0B' + '14', borderWidth: 1, borderColor: '#F59E0B' + '40' },
+  expiredTitle: { fontSize: 13, fontWeight: '700', color: '#F59E0B' },
+  expiredSub: { fontSize: 11, color: colors.text.tertiary },
   pickerSearchRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md },
   pickerInput: { backgroundColor: colors.bg.input, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, paddingHorizontal: spacing.md, height: 40, fontSize: 13, color: colors.text.primary },
   pickerSearchBtn: { width: 40, height: 40, borderRadius: radii.md, backgroundColor: colors.gold.primary, alignItems: 'center', justifyContent: 'center' },
