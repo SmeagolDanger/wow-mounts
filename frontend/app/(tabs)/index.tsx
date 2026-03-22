@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, ScrollView, Pressable,
-  RefreshControl, ActivityIndicator, Dimensions, Modal, Image,
+  View, Text, FlatList, StyleSheet, ScrollView, Pressable, TextInput,
+  RefreshControl, ActivityIndicator, Dimensions, Modal, Image, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii, shadows } from '../../theme';
 import { SearchBar, MountCard, ProgressRing, MountDetailModal, Card } from '../../components';
 import api, { MountSummary, FavChar, WowChar } from '../../services/api';
+
+interface PickerSearchResult { name: string; realm: string; realm_slug: string; level: number; race: string; class: string; faction: string; avatar_url: string | null; }
 import { useApp } from '../../contexts/AppContext';
 
 const { width: SW } = Dimensions.get('window');
@@ -35,6 +37,12 @@ export default function CollectionScreen() {
   const [favorites, setFavorites] = useState<FavChar[]>([]);
   const [hasBnet, setHasBnet] = useState(false);
   const [loadingPicker, setLoadingPicker] = useState(false);
+  // Inline search in picker
+  const [pickerRealm, setPickerRealm] = useState('');
+  const [pickerName, setPickerName] = useState('');
+  const [pickerSearching, setPickerSearching] = useState(false);
+  const [pickerResult, setPickerResult] = useState<PickerSearchResult | null>(null);
+  const [pickerError, setPickerError] = useState('');
 
   const iconQ = useRef<Set<number>>(new Set());
   const iconT = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,6 +88,29 @@ export default function CollectionScreen() {
       if (favsRes.status === 'fulfilled') setFavorites(favsRes.value.characters);
     } catch {} finally { setLoadingPicker(false); }
   }, []);
+
+  const pickerSearch = async () => {
+    if (!pickerRealm.trim() || !pickerName.trim()) return;
+    setPickerSearching(true); setPickerResult(null); setPickerError('');
+    try {
+      const r = await api.lookupCharacter(pickerRealm.trim().toLowerCase(), pickerName.trim());
+      setPickerResult(r);
+    } catch (e: any) { setPickerError(e.message || 'Character not found'); }
+    finally { setPickerSearching(false); }
+  };
+
+  const selectFromSearch = () => {
+    if (!pickerResult) return;
+    selectCharacter({
+      realm_slug: pickerResult.realm_slug,
+      character_name: pickerResult.name,
+      display: `${pickerResult.name}-${pickerResult.realm_slug}`,
+      faction: pickerResult.faction?.toLowerCase(),
+      avatar_url: pickerResult.avatar_url || undefined,
+    });
+    setCharPickerVisible(false);
+    setPickerResult(null); setPickerRealm(''); setPickerName('');
+  };
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
   useEffect(() => { load(); }, [load]);
@@ -284,11 +315,45 @@ export default function CollectionScreen() {
                   </>
                 )}
 
-                {myChars.length === 0 && favorites.length === 0 && !loadingPicker && (
+                {/* Inline search — always shown */}
+                <Text style={z.pickerSection}>SEARCH CHARACTER</Text>
+                <View style={z.pickerSearchRow}>
+                  <TextInput style={[z.pickerInput, { flex: 2 }]} value={pickerRealm} onChangeText={setPickerRealm}
+                    placeholder="Realm" placeholderTextColor={colors.text.tertiary} autoCapitalize="none" autoCorrect={false} />
+                  <TextInput style={[z.pickerInput, { flex: 3 }]} value={pickerName} onChangeText={setPickerName}
+                    placeholder="Name" placeholderTextColor={colors.text.tertiary} autoCapitalize="none" autoCorrect={false}
+                    onSubmitEditing={pickerSearch} returnKeyType="search" />
+                  <Pressable onPress={pickerSearch} style={[z.pickerSearchBtn, (!pickerRealm.trim() || !pickerName.trim()) && { opacity: 0.4 }]}
+                    disabled={!pickerRealm.trim() || !pickerName.trim() || pickerSearching}>
+                    {pickerSearching
+                      ? <ActivityIndicator size="small" color={colors.bg.primary} />
+                      : <Ionicons name="search" size={16} color={colors.bg.primary} />}
+                  </Pressable>
+                </View>
+                {pickerError ? <Text style={z.pickerErrorT}>{pickerError}</Text> : null}
+                {pickerResult && (
+                  <Pressable onPress={selectFromSearch} style={[z.favRow, z.favRowActive]}>
+                    {pickerResult.avatar_url
+                      ? <Image source={{ uri: pickerResult.avatar_url }} style={z.favAvatar} />
+                      : <View style={[z.favAvatar, z.favAvatarPh]}><Ionicons name="person" size={16} color={colors.text.tertiary} /></View>}
+                    <View style={z.favInfo}>
+                      <Text style={z.favName}>{pickerResult.name}</Text>
+                      <Text style={[z.favClass, { color: colors.classColor[pickerResult.class] || colors.text.secondary }]}>
+                        Lv {pickerResult.level} · {pickerResult.race} {pickerResult.class}
+                      </Text>
+                      <Text style={z.favRealm}>{pickerResult.realm}</Text>
+                    </View>
+                    <View style={z.pickerSelectBadge}><Text style={z.pickerSelectBadgeT}>SELECT</Text></View>
+                  </Pressable>
+                )}
+
+                {myChars.length === 0 && favorites.length === 0 && !loadingPicker && !pickerResult && (
                   <View style={z.pickerEmpty}>
-                    <Ionicons name="person-add-outline" size={32} color={colors.text.tertiary} />
-                    <Text style={z.pickerEmptyT}>{hasBnet ? 'No characters found' : 'Link Battle.net to auto-load characters'}</Text>
-                    <Text style={z.pickerEmptySub}>{hasBnet ? 'Make sure your WoW profile is set to public' : 'Or search a character on the Profile tab and save as a favorite'}</Text>
+                    <Text style={z.pickerEmptySub}>
+                      {hasBnet
+                        ? 'Your WoW profile may be set to private. Search for a character above instead.'
+                        : 'Search for any character above, or link Battle.net on the Profile tab to auto-load yours.'}
+                    </Text>
                   </View>
                 )}
               </ScrollView>
@@ -356,4 +421,10 @@ const z = StyleSheet.create({
   favRealm: { fontSize: 10, color: colors.text.tertiary },
   mainBadge: { backgroundColor: colors.gold.muted, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.gold.dim },
   mainBadgeT: { fontSize: 8, fontWeight: '800', color: colors.gold.primary, letterSpacing: 1 },
+  pickerSearchRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md },
+  pickerInput: { backgroundColor: colors.bg.input, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, paddingHorizontal: spacing.md, height: 40, fontSize: 13, color: colors.text.primary },
+  pickerSearchBtn: { width: 40, height: 40, borderRadius: radii.md, backgroundColor: colors.gold.primary, alignItems: 'center', justifyContent: 'center' },
+  pickerErrorT: { ...typography.caption, color: colors.fire.primary, paddingHorizontal: spacing.md, paddingTop: spacing.xs },
+  pickerSelectBadge: { backgroundColor: colors.gold.primary, paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radii.sm },
+  pickerSelectBadgeT: { fontSize: 10, fontWeight: '800', color: colors.bg.primary, letterSpacing: 1 },
 });
