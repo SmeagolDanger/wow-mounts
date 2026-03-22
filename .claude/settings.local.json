@@ -48,7 +48,9 @@
       "Bash(head -50 \"c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts/frontend/app/\\(tabs\\)/achievements.tsx\")",
       "Bash(head -50 \"c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts/frontend/app/\\(tabs\\)/routes.tsx\")",
       "Bash(npx expo:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(python -c \"from app.routes.collections import router; print\\(''OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(r''c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts\\\\backend\\\\app\\\\routes\\\\collections.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")"
     ]
   }
 }

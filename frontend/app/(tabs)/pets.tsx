@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, spacing, typography, radii } from '../../theme';
-import { Card, SearchBar, ProgressRing } from '../../components';
+import { Card, SearchBar, ProgressRing, PetDetailModal } from '../../components';
 import api, { PetSummary } from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
 
@@ -40,6 +40,7 @@ export default function PetsScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [showDetails, setShowDetails] = useState(false);
+  const [selectedPet, setSelectedPet] = useState<PetSummary | null>(null);
   const [iconCache, setIconCache] = useState<Record<number, { icon: string | null; zoom: string | null }>>({});
   const iconQ = useRef<Set<number>>(new Set());
   const iconT = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,7 +116,7 @@ export default function PetsScreen() {
     const media = iconCache[item.species_id];
     const imgUrl = media?.zoom || media?.icon;
     return (
-      <View style={[z.petCard, { width: COL }]}>
+      <Pressable onPress={() => setSelectedPet(item)} style={({pressed}) => [z.petCard, { width: COL }, pressed && z.petPressed]}>
         <View style={[z.petIcon, { borderColor: qColor + '60' }]}>
           {imgUrl ? (
             <Image source={{ uri: imgUrl }} style={z.petImg} />
@@ -133,7 +134,7 @@ export default function PetsScreen() {
             {showDetails && breed && <Text style={z.breedText}>{breed}</Text>}
           </View>
         </View>
-      </View>
+      </Pressable>
     );
   }, [showDetails, iconCache]);
 
@@ -203,6 +204,12 @@ export default function PetsScreen() {
           <View style={z.empty}><Ionicons name="search-outline" size={40} color={colors.text.tertiary} /><Text style={z.emptyT}>No pets found</Text></View>
         }
       />
+      <PetDetailModal
+        pet={selectedPet}
+        visible={!!selectedPet}
+        onClose={() => setSelectedPet(null)}
+        iconUrl={selectedPet ? (iconCache[selectedPet.species_id]?.zoom || iconCache[selectedPet.species_id]?.icon) : null}
+      />
     </SafeAreaView>
   );
 }
@@ -233,6 +240,7 @@ const z = StyleSheet.create({
   cnt: { ...typography.caption, color: colors.text.tertiary },
   row: { gap: GAP, marginBottom: GAP },
   petCard: { backgroundColor: colors.bg.secondary, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, overflow: 'hidden' },
+  petPressed: { opacity: 0.8, transform: [{ scale: 0.96 }] },
   petIcon: { aspectRatio: 1, backgroundColor: colors.bg.tertiary, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, overflow: 'hidden' },
   petImg: { width: '100%', height: '100%' },
   levelBadge: { position: 'absolute', bottom: 2, right: 2, backgroundColor: colors.bg.primary + 'DD', borderRadius: radii.sm, paddingHorizontal: 4, paddingVertical: 1 },
