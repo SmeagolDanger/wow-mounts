@@ -11,7 +11,7 @@ import { useApp } from '../../contexts/AppContext';
 interface LR { name:string;realm:string;realm_slug:string;level:number;race:string;class:string;faction:string;avatar_url:string|null;mount_count:number|null; }
 
 export default function ProfileScreen() {
-  const { refreshMe } = useApp();
+  const { refreshMe, selectCharacter, selectedChar } = useApp();
   const [favs,setFavs]=useState<FavChar[]>([]);
   const [hasBnet,setHasBnet]=useState(false);
   const [btag,setBtag]=useState<string|null>(null);
@@ -70,14 +70,23 @@ export default function ProfileScreen() {
               </View>
               <Pressable onPress={addFav} style={z.favBtn}><Ionicons name="heart-outline" size={20} color={colors.fire.primary}/></Pressable>
             </View>
+            <View style={z.rActions}>
+              <Pressable onPress={()=>{selectCharacter({realm_slug:result.realm_slug,character_name:result.name,display:`${result.name}-${result.realm_slug}`,faction:result.faction?.toLowerCase(),avatar_url:result.avatar_url||undefined});Alert.alert('Character Selected',`${result.name} is now your active character for collection tracking.`);}} style={z.selectBtn}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.bg.primary}/>
+                <Text style={z.selectBtnT}>Track This Character</Text>
+              </Pressable>
+            </View>
           </Card>
         )}
         <View style={z.sec}>
           <Text style={z.secT}>Favorites <Text style={z.secC}>({favs.length})</Text></Text>
           {favs.length===0&&!loading
             ?<View style={z.eFav}><Ionicons name="heart-outline" size={28} color={colors.text.tertiary}/><Text style={z.eFavT}>No favorites yet</Text><Text style={z.eFavS}>Search a character above and tap the heart to save them</Text></View>
-            :<View style={z.fList}>{favs.map(c=>(
-              <Card key={c.id} variant={c.is_primary?'gold':'default'}>
+            :<View style={z.fList}>{favs.map(c=>{
+              const isActive = selectedChar?.character_name === c.character_name && selectedChar?.realm_slug === c.realm_slug;
+              return (
+              <Card key={c.id} variant={isActive?'gold':c.is_primary?'default':'default'}
+                onPress={()=>selectCharacter({realm_slug:c.realm_slug,character_name:c.character_name,display:`${c.character_name}-${c.realm_slug}`,avatar_url:c.avatar_url||undefined})}>
                 <View style={z.fRow}>
                   {c.avatar_url?<Image source={{uri:c.avatar_url}} style={z.fAv}/>:<View style={[z.fAv,z.avPh]}><Ionicons name="person" size={16} color={colors.text.tertiary}/></View>}
                   <View style={z.fInfo}>
@@ -86,12 +95,14 @@ export default function ProfileScreen() {
                     <Text style={z.fRealm}>{c.realm_slug}</Text>
                   </View>
                   <View style={z.fActs}>
-                    {c.is_primary&&<View style={z.mainB}><Text style={z.mainT}>MAIN</Text></View>}
+                    {isActive&&<Ionicons name="checkmark-circle" size={18} color={colors.gold.primary}/>}
+                    {!isActive&&c.is_primary&&<View style={z.mainB}><Text style={z.mainT}>MAIN</Text></View>}
                     <Pressable onPress={()=>rmFav(c.id,c.character_name)} hitSlop={8}><Ionicons name="close-circle" size={18} color={colors.text.tertiary}/></Pressable>
                   </View>
                 </View>
               </Card>
-            ))}</View>
+              );
+            })}</View>
           }
         </View>
 
@@ -133,6 +144,9 @@ const z=StyleSheet.create({
   rRealm:{fontSize:10,color:colors.text.tertiary},
   rMounts:{fontSize:10,color:colors.gold.dim,marginTop:1},
   favBtn:{width:36,height:36,borderRadius:radii.full,backgroundColor:colors.fire.muted,alignItems:'center',justifyContent:'center'},
+  rActions:{flexDirection:'row',marginTop:spacing.md,paddingTop:spacing.md,borderTopWidth:1,borderTopColor:colors.border.default},
+  selectBtn:{flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:spacing.xs,backgroundColor:colors.gold.primary,borderRadius:radii.md,paddingVertical:10},
+  selectBtnT:{fontSize:13,fontWeight:'700',color:colors.bg.primary},
   eFav:{alignItems:'center',paddingVertical:spacing.xxxl,gap:spacing.md},
   eFavT:{...typography.subheading,color:colors.text.secondary},
   eFavS:{...typography.caption,color:colors.text.tertiary,textAlign:'center'},

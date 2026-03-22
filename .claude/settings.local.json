@@ -37,7 +37,8 @@
       "Bash(find 'c:/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/components' -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
       "Bash(xargs grep:*)",
       "Read(//c/Users/Mike Kennedy/.claude/projects/c--Users-Mike-Kennedy-Documents-GitHub-wow-mounts/memory/**)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\(''app/routes/farm.py''\\).read\\(\\)\\); print\\(''farm.py OK''\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app/routes/farm.py''\\).read\\(\\)\\); print\\(''farm.py OK''\\)\")",
+      "Bash(ls \"/c/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app/\\(tabs\\)/\")"
     ]
   }
 }

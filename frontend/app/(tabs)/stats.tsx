@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii } from '../../theme';
 import { Card } from '../../components';
@@ -16,7 +15,6 @@ interface StatRow {
   count: number;
   color: string;
   points?: number;
-  route?: string;
 }
 
 export default function StatsScreen() {
@@ -27,7 +25,6 @@ export default function StatsScreen() {
     collectionSummary, loadingCollected, refreshCollections,
   } = useApp();
   const [refreshing, setRefreshing] = useState(false);
-  const router = useRouter();
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -36,9 +33,9 @@ export default function StatsScreen() {
   }, [refreshCollections]);
 
   const stats: StatRow[] = [
-    { key: 'mounts', label: 'Mounts', icon: 'trophy', count: collectedIds.size, color: colors.gold.primary, route: '/' },
-    { key: 'pets', label: 'Battle Pets', icon: 'paw', count: collectedPetIds.size, color: colors.fel.primary, route: '/pets' },
-    { key: 'achievements', label: 'Achievements', icon: 'ribbon', count: achievementCount, color: '#F5B800', points: achievementPoints, route: '/achievements' },
+    { key: 'mounts', label: 'Mounts', icon: 'trophy', count: collectedIds.size, color: colors.gold.primary },
+    { key: 'pets', label: 'Battle Pets', icon: 'paw', count: collectedPetIds.size, color: colors.fel.primary },
+    { key: 'achievements', label: 'Achievements', icon: 'ribbon', count: achievementCount, color: '#F5B800', points: achievementPoints },
     { key: 'toys', label: 'Toys', icon: 'game-controller', count: collectedToyIds.size, color: colors.frost.primary },
     { key: 'titles', label: 'Titles', icon: 'bookmark', count: collectedTitleIds.size, color: colors.arcane.primary },
     { key: 'heirlooms', label: 'Heirlooms', icon: 'diamond', count: collectedHeirloomIds.size, color: colors.fire.primary },
@@ -98,7 +95,7 @@ export default function StatsScreen() {
             <View style={z.grid}>
               {stats.map(stat => (
                 <View key={stat.key} style={z.statCard}>
-                  <Card variant="default" onPress={stat.route ? () => router.push(stat.route as any) : undefined}>
+                  <Card variant="default">
                     <View style={z.statInner}>
                       <View style={[z.statIcon, { backgroundColor: stat.color + '18' }]}>
                         <Ionicons name={stat.icon} size={20} color={stat.color} />
@@ -107,9 +104,6 @@ export default function StatsScreen() {
                       <Text style={z.statLabel}>{stat.label}</Text>
                       {stat.points !== undefined && stat.points > 0 && (
                         <Text style={z.statPoints}>{stat.points.toLocaleString()} pts</Text>
-                      )}
-                      {stat.route && (
-                        <Ionicons name="chevron-forward" size={12} color={colors.text.tertiary} style={z.statArrow} />
                       )}
                     </View>
                   </Card>
@@ -170,7 +164,6 @@ const z = StyleSheet.create({
   statCount: { fontSize: 22, fontWeight: '700', color: colors.text.primary },
   statLabel: { ...typography.label, fontSize: 10 },
   statPoints: { fontSize: 10, fontWeight: '600', color: colors.gold.dim },
-  statArrow: { position: 'absolute', top: spacing.sm, right: spacing.sm },
   section: { gap: spacing.sm },
   sectionTitle: { ...typography.heading },
   breakdownCard: { backgroundColor: colors.bg.secondary, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, overflow: 'hidden' },

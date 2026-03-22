@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, RefreshControl,
-  Modal, Alert, SectionList, Animated, Easing, TextInput,
+  Modal, Alert, SectionList, TextInput,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -158,6 +158,7 @@ interface TaskRow {
   zone: string;
   zoneNote?: string;
   zoneType?: string;
+  isFirstInZone: boolean;
 }
 interface Section {
   title: string;       // expansion name
@@ -196,8 +197,8 @@ function buildSections(tasks: FarmTask[], hideCompleted: boolean): Section[] {
     if (!expMap.has(exp)) expMap.set(exp, []);
     const zoneTasks = zoneMap.get(zone)!.sort((a, b) => a.sort_order - b.sort_order);
     const geo = ZONE_GEO.find(g => g.zone === zone);
-    for (const task of zoneTasks) {
-      expMap.get(exp)!.push({ task, zone, zoneNote: ZONE_NOTE.get(zone), zoneType: geo?.type });
+    for (let i = 0; i < zoneTasks.length; i++) {
+      expMap.get(exp)!.push({ task: zoneTasks[i], zone, zoneNote: ZONE_NOTE.get(zone), zoneType: geo?.type, isFirstInZone: i === 0 });
     }
   }
 
@@ -374,9 +375,6 @@ export default function PlannerScreen() {
   const daily = fmtCountdown(getNextDailyReset());
   const weekly = fmtCountdown(getNextWeeklyReset());
 
-  // ── Track which zone the previous row was in (for zone subheaders) ──
-  let lastZone = '';
-
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <SectionList
@@ -487,7 +485,6 @@ export default function PlannerScreen() {
         }
 
         renderSectionHeader={({ section }) => {
-          lastZone = '';
           const sec = section as unknown as Section;
           return (
             <Pressable onPress={() => toggleCollapse(sec.title)} style={s.sectionHeader}>
@@ -501,14 +498,12 @@ export default function PlannerScreen() {
         }}
 
         renderItem={({ item }) => {
-          const { task, zone, zoneNote, zoneType } = item;
+          const { task, zone, zoneNote, zoneType, isFirstInZone } = item;
           const done = task.completed;
-          const showZoneHeader = zone !== lastZone;
-          lastZone = zone;
           const typeMeta = TYPE_META[zoneType || ''] || TYPE_META[task.source_type || ''];
           return (
             <View>
-              {showZoneHeader && (
+              {isFirstInZone && (
                 <View style={s.zoneRow}>
                   {typeMeta && <Ionicons name={typeMeta.icon as any} size={12} color={typeMeta.color} />}
                   <Text style={s.zoneName}>{zone}</Text>
