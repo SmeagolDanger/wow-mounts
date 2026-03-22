@@ -40,14 +40,18 @@ export default function PetsScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [showDetails, setShowDetails] = useState(false);
-  const [iconCache, setIconCache] = useState<Record<number, string | null>>({});
+  const [iconCache, setIconCache] = useState<Record<number, { icon: string | null; zoom: string | null }>>({});
   const iconQ = useRef<Set<number>>(new Set());
   const iconT = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchIcons = useCallback(async (ids: number[]) => {
     try {
       const d = await api.getPetIcons(ids);
-      setIconCache(p => { const n = { ...p }; for (const [k, v] of Object.entries(d.icons)) n[Number(k)] = v; return n; });
+      setIconCache(p => {
+        const n = { ...p };
+        for (const [k, v] of Object.entries(d.icons)) n[Number(k)] = v;
+        return n;
+      });
     } catch (e) { console.error('Fetch pet icons:', e); }
   }, []);
 
@@ -77,9 +81,6 @@ export default function PetsScreen() {
     try {
       const data = await api.getCharacterPets(selectedChar.realm_slug, selectedChar.character_name);
       setPets(data.pets);
-      const seed: Record<number, string | null> = {};
-      for (const p of data.pets) if (p.icon_url) seed[p.species_id] = p.icon_url;
-      setIconCache(prev => ({ ...prev, ...seed }));
     } catch (e) { console.error('Load pets:', e); setPets([]); }
     finally { setLoading(false); }
   }, [selectedChar]);
@@ -111,12 +112,13 @@ export default function PetsScreen() {
   const renderPet = useCallback(({ item }: { item: PetSummary }) => {
     const qColor = QUALITY_COLORS[item.quality] || colors.text.secondary;
     const breed = item.breed_id ? BREED_NAMES[item.breed_id] : null;
-    const iconUrl = iconCache[item.species_id];
+    const media = iconCache[item.species_id];
+    const imgUrl = media?.zoom || media?.icon;
     return (
       <View style={[z.petCard, { width: COL }]}>
         <View style={[z.petIcon, { borderColor: qColor + '60' }]}>
-          {iconUrl ? (
-            <Image source={{ uri: iconUrl }} style={z.petImg} />
+          {imgUrl ? (
+            <Image source={{ uri: imgUrl }} style={z.petImg} />
           ) : (
             <Ionicons name="paw" size={20} color={qColor} />
           )}

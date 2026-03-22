@@ -116,7 +116,7 @@ class ApiService {
     return this.request<{pets:PetSummary[];total:number}>('/collections/pets',{},{realm,name,region});
   }
   async getPetIcons(speciesIds:number[]) {
-    return this.request<{icons:Record<string,string|null>}>('/collections/pets/icons',{},{ids:speciesIds.join(',')});
+    return this.request<{icons:Record<string,{icon:string|null;zoom:string|null}>}>('/collections/pets/icons',{},{ids:speciesIds.join(',')});
   }
   async getCharacterToys(realm:string,name:string,region='us') {
     return this.request<{toys:ToySummary[];total:number}>('/collections/toys',{},{realm,name,region});
