@@ -27,6 +27,7 @@ export default function TabLayout() {
       <Tabs.Screen name="missingtoys" options={{ href: null }} />
       <Tabs.Screen name="missingpets" options={{ href: null }} />
       <Tabs.Screen name="missingtitles" options={{ href: null }} />
+      <Tabs.Screen name="heirlooms" options={{ href: null }} />
     </Tabs>
   );
 }

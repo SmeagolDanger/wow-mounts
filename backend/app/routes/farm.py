@@ -3,13 +3,16 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Body, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.models import FarmTask
 from app.routes.auth import _extract_token, decode_jwt
+
+_settings = get_settings()
 
 router = APIRouter(prefix="/farm", tags=["farm"])
 
@@ -29,52 +32,24 @@ VALID_SOURCE_TYPES = {
 
 
 class FarmTaskCreate(BaseModel):
-    title: str
-    description: str | None = None
+    title: str = Field(..., min_length=1, max_length=255)
+    description: str | None = Field(None, max_length=2000)
     mount_id: int | None = None
-    source_type: str | None = None  # raid, dungeon, world_boss, reputation, etc
-    zone_name: str | None = None
-    reset_type: str = "daily"  # daily, weekly, none
-    notes: str | None = None
+    source_type: str | None = Field(None, max_length=64)
+    zone_name: str | None = Field(None, max_length=128)
+    reset_type: str = Field("daily", pattern=r"^(daily|weekly|none)$")
+    notes: str | None = Field(None, max_length=2000)
     sort_order: int = 0
-
-    @classmethod
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-
-    def model_post_init(self, __context):
-        if len(self.title) > 255:
-            raise ValueError("Title must be 255 characters or less")
-        if self.description and len(self.description) > 2000:
-            raise ValueError("Description must be 2000 characters or less")
-        if self.notes and len(self.notes) > 2000:
-            raise ValueError("Notes must be 2000 characters or less")
-        if self.zone_name and len(self.zone_name) > 128:
-            raise ValueError("Zone name must be 128 characters or less")
-        if self.source_type and len(self.source_type) > 64:
-            raise ValueError("Source type must be 64 characters or less")
-        if self.reset_type not in VALID_RESET_TYPES:
-            raise ValueError(f"reset_type must be one of: {', '.join(VALID_RESET_TYPES)}")
 
 
 class FarmTaskUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    source_type: str | None = None
-    zone_name: str | None = None
-    reset_type: str | None = None
-    notes: str | None = None
+    title: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = Field(None, max_length=2000)
+    source_type: str | None = Field(None, max_length=64)
+    zone_name: str | None = Field(None, max_length=128)
+    reset_type: str | None = Field(None, pattern=r"^(daily|weekly|none)$")
+    notes: str | None = Field(None, max_length=2000)
     sort_order: int | None = None
-
-    def model_post_init(self, __context):
-        if self.title is not None and len(self.title) > 255:
-            raise ValueError("Title must be 255 characters or less")
-        if self.description is not None and len(self.description) > 2000:
-            raise ValueError("Description must be 2000 characters or less")
-        if self.notes is not None and len(self.notes) > 2000:
-            raise ValueError("Notes must be 2000 characters or less")
-        if self.reset_type is not None and self.reset_type not in VALID_RESET_TYPES:
-            raise ValueError(f"reset_type must be one of: {', '.join(VALID_RESET_TYPES)}")
 
 
 # ── Reset Logic ──────────────────────────────────────────────────────
@@ -178,6 +153,14 @@ async def create_farm_task(
     """Create a new farm task."""
     payload = decode_jwt(token)
     user_id = int(payload["sub"])
+
+    # Enforce per-user task limit
+    count_result = await db.execute(select(func.count()).select_from(FarmTask).where(FarmTask.user_id == user_id))
+    if count_result.scalar() >= _settings.MAX_FARM_TASKS:
+        raise HTTPException(
+            400,
+            f"Farm task limit reached ({_settings.MAX_FARM_TASKS}). Delete some tasks first.",
+        )
 
     new_task = FarmTask(
         user_id=user_id,

@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { colors, spacing, typography, radii } from '../../theme';
 import { Card } from '../../components';
 import api, { ProfessionData, ProfessionEntry, ProfessionTier } from '../../services/api';
@@ -36,6 +37,7 @@ interface Section {
 }
 
 export default function ProfessionsScreen() {
+  const router = useRouter();
   const { selectedChar } = useApp();
   const [profData, setProfData] = useState<ProfessionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,6 +104,9 @@ export default function ProfessionsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} progressBackgroundColor={colors.bg.secondary} />}
         ListHeaderComponent={
           <View style={z.hdr}>
+            <Pressable onPress={() => router.back()} style={z.back}>
+              <Ionicons name="arrow-back" size={20} color={colors.text.secondary} />
+            </Pressable>
             <Text style={z.title}>Professions</Text>
             <Card variant="default" style={z.heroCard}>
               <View style={z.heroRow}>
@@ -191,6 +196,7 @@ const z = StyleSheet.create({
   loadT: { ...typography.body, color: colors.text.secondary },
   list: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
   hdr: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  back: { width: 32, height: 32, borderRadius: radii.full, backgroundColor: colors.bg.secondary, alignItems: 'center', justifyContent: 'center' },
   title: { ...typography.display, color: ACCENT },
   heroCard: { padding: spacing.lg },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },

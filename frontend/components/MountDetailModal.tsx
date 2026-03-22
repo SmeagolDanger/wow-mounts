@@ -6,10 +6,21 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii, shadows } from '../theme';
 import api from '../services/api';
+import Toast from './Toast';
 
 const { width: SW } = Dimensions.get('window');
 const IMG_W = SW - spacing.xl * 4;
 const IMG_H = Math.round(IMG_W * 0.6);
+
+interface MountDetail {
+  id: number;
+  name: string;
+  description?: string;
+  icon_url?: string;
+  source?: { type?: string; name?: string };
+  faction?: { type?: string; name?: string };
+  creature_display_id?: number;
+}
 
 const SOURCE_INFO: Record<string, { label: string; color: string; rank: number; reset: string; tip: string; examples: string }> = {
   vendor:      { label: 'Vendor',       color: '#E2E8F0', rank: 1, reset: 'none',
@@ -59,10 +70,11 @@ interface Props {
 }
 
 export default function MountDetailModal({ mountId, visible, onClose, onFarmChange }: Props) {
-  const [detail, setDetail] = useState<any>(null);
+  const [detail, setDetail] = useState<MountDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [farmTaskId, setFarmTaskId] = useState<number | null>(null);
   const [farmLoading, setFarmLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; icon: keyof typeof Ionicons.glyphMap; color: string } | null>(null);
 
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -125,7 +137,11 @@ export default function MountDetailModal({ mountId, visible, onClose, onFarmChan
       const existing = ft.tasks.find((t: any) => t.mount_id === mountId);
       setFarmTaskId(existing?.id ?? null);
       onFarmChange?.();
-    } catch {} finally { setFarmLoading(false); }
+      setToast({ message: 'Added to Farm List', icon: 'checkmark-circle', color: colors.fel.primary });
+    } catch (e) {
+      console.error('Failed to add farm task:', e);
+      setToast({ message: 'Failed to add — try again', icon: 'alert-circle', color: colors.fire.primary });
+    } finally { setFarmLoading(false); }
   };
 
   const removeFromFarm = async () => {
@@ -135,7 +151,11 @@ export default function MountDetailModal({ mountId, visible, onClose, onFarmChan
       await api.deleteFarmTask(farmTaskId);
       setFarmTaskId(null);
       onFarmChange?.();
-    } catch {} finally { setFarmLoading(false); }
+      setToast({ message: 'Removed from Farm List', icon: 'trash-outline', color: colors.fire.primary });
+    } catch (e) {
+      console.error('Failed to remove farm task:', e);
+      setToast({ message: 'Failed to remove — try again', icon: 'alert-circle', color: colors.fire.primary });
+    } finally { setFarmLoading(false); }
   };
 
   return (
@@ -271,6 +291,15 @@ export default function MountDetailModal({ mountId, visible, onClose, onFarmChan
               </View>
             )}
           </ScrollView>
+          {toast && (
+            <Toast
+              visible={!!toast}
+              message={toast.message}
+              icon={toast.icon}
+              color={toast.color}
+              onHide={() => setToast(null)}
+            />
+          )}
         </View>
       </View>
     </Modal>

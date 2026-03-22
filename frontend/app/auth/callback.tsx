@@ -1,13 +1,12 @@
 import { useEffect } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import api from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
 import { colors, typography, spacing } from '../../theme';
 
 export default function AuthCallback() {
-  const params = useLocalSearchParams<{ token?: string; battletag?: string; error?: string }>();
+  const params = useLocalSearchParams<{ token?: string; refresh_token?: string; battletag?: string; error?: string }>();
   const router = useRouter();
   const { refreshMe } = useApp();
 
@@ -18,8 +17,7 @@ export default function AuthCallback() {
         return;
       }
       if (params.token) {
-        await SecureStore.setItemAsync('auth_token', params.token);
-        api.setToken(params.token);
+        await api.setTokens(params.token, params.refresh_token || '');
         await refreshMe();
       }
       setTimeout(() => {

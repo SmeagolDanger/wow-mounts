@@ -28,9 +28,10 @@ settings = get_settings()
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Simple in-memory per-IP rate limiter with periodic cleanup."""
 
-    def __init__(self, app, calls_per_minute: int = 60):
+    def __init__(self, app, calls_per_minute: int = 60, behind_proxy: bool = False):
         super().__init__(app)
         self.calls_per_minute = calls_per_minute
+        self.behind_proxy = behind_proxy
         self.requests: dict[str, list[float]] = defaultdict(list)
         self._last_cleanup = time.time()
 
@@ -40,11 +41,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"
-        # Also check X-Forwarded-For behind a proxy
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            # Only trust first hop — don't blindly trust all proxies
-            client_ip = forwarded.split(",")[0].strip()
+        # Only trust X-Forwarded-For when explicitly configured behind a proxy
+        if self.behind_proxy:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                client_ip = forwarded.split(",")[0].strip()
 
         now = time.time()
         window = now - 60
@@ -71,10 +72,39 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    """Reject requests with bodies exceeding the configured max size."""
+
+    def __init__(self, app, max_bytes: int = 1024 * 1024):
+        super().__init__(app)
+        self.max_bytes = max_bytes
+
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.max_bytes:
+            return Response(
+                content='{"detail":"Request body too large"}',
+                status_code=413,
+                media_type="application/json",
+            )
+        return await call_next(request)
+
+
 # ── Security Headers Middleware ──────────────────────────────────────
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    # Strict CSP for API responses (JSON only — no scripts/styles needed)
+    STRICT_CSP = "default-src 'none'; frame-ancestors 'none'"
+    # Relaxed CSP only for the OAuth callback HTML page
+    OAUTH_CSP = (
+        "default-src 'none'; "
+        "script-src 'unsafe-inline'; "
+        "style-src 'unsafe-inline'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -82,13 +112,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; "
-            "script-src 'unsafe-inline'; "  # needed for OAuth callback redirect page only
-            "style-src 'unsafe-inline'; "
-            "connect-src 'self'; "
-            "frame-ancestors 'none'"
-        )
+        # Only allow inline scripts on the OAuth callback page (returns HTML)
+        is_oauth_callback = request.url.path.endswith("/auth/bnet/callback")
+        response.headers["Content-Security-Policy"] = self.OAUTH_CSP if is_oauth_callback else self.STRICT_CSP
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         if settings.is_production:
@@ -128,7 +154,12 @@ app = FastAPI(
 
 # Middleware stack (order matters — outermost first)
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, calls_per_minute=settings.RATE_LIMIT_PER_MINUTE)
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.MAX_BODY_SIZE)
+app.add_middleware(
+    RateLimitMiddleware,
+    calls_per_minute=settings.RATE_LIMIT_PER_MINUTE,
+    behind_proxy=settings.BEHIND_PROXY,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,

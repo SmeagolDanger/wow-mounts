@@ -5,32 +5,100 @@ const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 class ApiService {
   private token: string | null = null;
-  async init() { try { this.token = await SecureStore.getItemAsync('auth_token'); } catch { this.token = null; } }
+  private refreshToken: string | null = null;
+  private refreshPromise: Promise<void> | null = null;
+
+  async init() {
+    try {
+      this.token = await SecureStore.getItemAsync('auth_token');
+      this.refreshToken = await SecureStore.getItemAsync('refresh_token');
+    } catch {
+      this.token = null;
+      this.refreshToken = null;
+    }
+  }
+
   setToken(t: string) { this.token = t; }
+
+  async setTokens(access: string, refresh: string) {
+    this.token = access;
+    this.refreshToken = refresh;
+    await SecureStore.setItemAsync('auth_token', access);
+    await SecureStore.setItemAsync('refresh_token', refresh);
+  }
+
   async getDeviceId(): Promise<string> {
     let id = await SecureStore.getItemAsync('device_id');
     if (!id) { id = `device_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`; await SecureStore.setItemAsync('device_id', id); }
     return id;
   }
-  private async request<T>(path: string, opts: RequestInit = {}, params: Record<string, string> = {}): Promise<T> {
+
+  private async rawRequest<T>(path: string, opts: RequestInit = {}, params: Record<string, string> = {}): Promise<Response> {
     const url = new URL(`${API_BASE}${path}`);
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.token) h['Authorization'] = `Bearer ${this.token}`;
-    const res = await fetch(url.toString(), { ...opts, headers: { ...h, ...opts.headers } });
+    return fetch(url.toString(), { ...opts, headers: { ...h, ...opts.headers } });
+  }
+
+  private async attemptRefresh(): Promise<boolean> {
+    if (!this.refreshToken) return false;
+    try {
+      const url = new URL(`${API_BASE}/auth/refresh`);
+      const res = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.refreshToken}`,
+        },
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      await this.setTokens(data.token, data.refresh_token);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async request<T>(path: string, opts: RequestInit = {}, params: Record<string, string> = {}): Promise<T> {
+    let res = await this.rawRequest<T>(path, opts, params);
+
+    // If 401, try refreshing the token once
+    if (res.status === 401 && this.refreshToken && !path.includes('/auth/refresh')) {
+      // Deduplicate concurrent refresh attempts
+      if (!this.refreshPromise) {
+        this.refreshPromise = this.attemptRefresh().then(ok => {
+          this.refreshPromise = null;
+          if (!ok) throw new Error('Token refresh failed');
+        });
+      }
+      try {
+        await this.refreshPromise;
+        res = await this.rawRequest<T>(path, opts, params);
+      } catch {
+        // Refresh failed — throw original 401
+      }
+    }
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(typeof err?.detail === 'string' ? err.detail : `API error ${res.status}`);
     }
     return res.json();
   }
-  async deviceAuth(did: string) { const d = await this.request<{token:string;user_id:number;battletag:string|null}>('/auth/device',{method:'POST'},{device_id:did}); this.token=d.token; await SecureStore.setItemAsync('auth_token',d.token); return d; }
+
+  async deviceAuth(did: string) {
+    const d = await this.request<{token:string;refresh_token:string;user_id:number;battletag:string|null}>('/auth/device',{method:'POST'},{device_id:did});
+    await this.setTokens(d.token, d.refresh_token);
+    return d;
+  }
   async getBnetLoginUrl() { const did=await this.getDeviceId(); const cb=Linking.createURL('auth/callback'); return this.request<{authorize_url:string;state:string}>('/auth/bnet/login',{},{device_id:did,app_redirect:cb}); }
   async getMe() { return this.request<{user_id:number;battletag:string|null;has_bnet:boolean}>('/auth/me'); }
   async getMounts() { const r = await this.request<{mounts:MountSummary[];total:number;cached:boolean}>('/mounts/'); for (const m of r.mounts) if (m.source_type) m.source_type = m.source_type.toLowerCase(); return r; }
   async getMountIcons(ids:number[]) { return this.request<{icons:Record<string,string|null>}>('/mounts/icons',{},{ids:ids.join(',')}); }
   async searchMounts(q:string) { const r = await this.request<{mounts:MountSummary[];total:number}>('/mounts/search',{},{q}); for (const m of r.mounts) if (m.source_type) m.source_type = m.source_type.toLowerCase(); return r; }
-  async getMountDetail(id:number) { return this.request<any>(`/mounts/${id}`); }
+  async getMountDetail(id:number) { return this.request<MountDetail>(`/mounts/${id}`); }
   async lookupCharacter(realm:string,name:string,region='us') { return this.request<CharLookup>('/characters/lookup',{},{realm,name,region}); }
   async getRealms() { return this.request<{realms:{id:number;name:string;slug:string}[]}>('/characters/realms'); }
   async getMyCharacters() { return this.request<{characters:WowChar[];has_bnet:boolean;token_expired?:boolean}>('/characters/mine'); }
@@ -86,6 +154,7 @@ class ApiService {
 
 // ── Interfaces ───────────────────────────────────────────────────────
 export interface MountSummary { id:number; name:string; description?:string; source_type?:string; faction?:string; icon_url?:string; }
+export interface MountDetail { id:number; name:string; description?:string; icon_url?:string; source?:{type?:string;name?:string}; faction?:{type?:string;name?:string}; creature_display_id?:number; }
 export interface WowChar { name:string; realm_slug:string; realm:string; level:number; class_name:string; race_name:string; faction:string; }
 export interface CharLookup { name:string; realm:string; realm_slug:string; level:number; race:string; class:string; faction:string; avatar_url:string|null; mounts:{mount:{id:number;name:string}}[]|null; mount_count:number|null; }
 export interface FavChar { id:number; realm_slug:string; character_name:string; region:string; class_name:string; race_name:string; level:number; avatar_url:string|null; is_primary:boolean; }

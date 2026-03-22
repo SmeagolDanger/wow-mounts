@@ -41,7 +41,8 @@
       "Bash(ls \"/c/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app/\\(tabs\\)/\")",
       "Bash(python -m py_compile app/services/blizzard.py)",
       "Bash(python -m py_compile app/routes/collections.py)",
-      "Bash(find 'c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts\\\\frontend\\\\src' -type f -name *.ts -o -name *.tsx)"
+      "Bash(find 'c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts\\\\frontend\\\\src' -type f -name *.ts -o -name *.tsx)",
+      "Bash(node -e \"const path = require\\(''path''\\); console.log\\(path.resolve\\(''app/\\(tabs\\)'', ''../../data/collectionRequirements''\\)\\)\")"
     ]
   }
 }

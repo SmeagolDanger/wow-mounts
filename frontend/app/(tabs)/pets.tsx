@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { colors, spacing, typography, radii } from '../../theme';
 import { Card, SearchBar, ProgressRing } from '../../components';
 import api, { PetSummary } from '../../services/api';
@@ -31,6 +32,7 @@ const BREED_NAMES: Record<number, string> = {
 type Filter = 'all' | 'max' | 'leveling';
 
 export default function PetsScreen() {
+  const router = useRouter();
   const { selectedChar } = useApp();
   const [pets, setPets] = useState<PetSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +115,9 @@ export default function PetsScreen() {
         ListHeaderComponent={
           <View style={z.hdr}>
             <View style={z.titleRow}>
+              <Pressable onPress={() => router.back()} style={z.back}>
+                <Ionicons name="arrow-back" size={20} color={colors.text.secondary} />
+              </Pressable>
               <Text style={z.title}>Battle Pets</Text>
               <Pressable onPress={() => setShowDetails(!showDetails)} style={[z.detailBtn, showDetails && z.detailBtnActive]}>
                 <Ionicons name="eye" size={14} color={showDetails ? colors.fel.primary : colors.text.tertiary} />
@@ -159,6 +164,7 @@ const z = StyleSheet.create({
   loadT: { ...typography.body, color: colors.text.secondary },
   list: { paddingHorizontal: PAD, paddingBottom: 100 },
   hdr: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  back: { width: 32, height: 32, borderRadius: radii.full, backgroundColor: colors.bg.secondary, alignItems: 'center', justifyContent: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { ...typography.display, color: colors.fel.bright },
   detailBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radii.full, borderWidth: 1, borderColor: colors.border.default, backgroundColor: colors.bg.secondary },

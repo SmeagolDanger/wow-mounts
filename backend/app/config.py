@@ -30,6 +30,16 @@ class Settings:
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 
+    # Set to True when running behind a reverse proxy (nginx, Cloudflare, etc.)
+    # Only trust X-Forwarded-For when this is True
+    BEHIND_PROXY: bool = os.getenv("BEHIND_PROXY", "false").lower() in ("true", "1", "yes")
+
+    # Max request body size in bytes (default 1MB)
+    MAX_BODY_SIZE: int = int(os.getenv("MAX_BODY_SIZE", str(1024 * 1024)))
+
+    # Per-user farm task limit
+    MAX_FARM_TASKS: int = int(os.getenv("MAX_FARM_TASKS", "200"))
+
     # Cache TTLs (seconds)
     MOUNT_INDEX_TTL: int = 86400  # 24h — mount list rarely changes
     CHARACTER_TTL: int = 3600  # 1h for character collections

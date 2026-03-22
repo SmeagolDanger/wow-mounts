@@ -9,6 +9,17 @@ import { colors, spacing, typography, radii } from '../../theme';
 import { Card } from '../../components';
 import { useApp } from '../../contexts/AppContext';
 
+const STAT_ROUTES: Record<string, string> = {
+  mounts: '/(tabs)',
+  pets: '/(tabs)/pets',
+  achievements: '/(tabs)/achievements',
+  toys: '/(tabs)/missingtoys',
+  titles: '/(tabs)/missingtitles',
+  transmog: '/(tabs)/transmog',
+  heirlooms: '/(tabs)/heirlooms',
+  recipes: '/(tabs)/professions',
+};
+
 interface StatRow {
   key: string;
   label: string;
@@ -16,17 +27,7 @@ interface StatRow {
   count: number;
   color: string;
   points?: number;
-  route?: string;
 }
-
-const STAT_ROUTES: Record<string, string> = {
-  mounts: '/quickwins',
-  pets: '/missingpets',
-  toys: '/missingtoys',
-  titles: '/missingtitles',
-  transmog: '/transmog',
-  recipes: '/professions',
-};
 
 export default function StatsScreen() {
   const router = useRouter();
@@ -44,15 +45,17 @@ export default function StatsScreen() {
     setRefreshing(false);
   }, [refreshCollections]);
 
+  // Use collectionSummary (from backend) as primary source, individual state as fallback
+  const s = collectionSummary?.summary;
   const stats: StatRow[] = [
-    { key: 'mounts', label: 'Mounts', icon: 'trophy', count: collectedIds.size, color: colors.gold.primary },
-    { key: 'pets', label: 'Battle Pets', icon: 'paw', count: collectedPetIds.size, color: colors.fel.primary },
-    { key: 'achievements', label: 'Achievements', icon: 'ribbon', count: achievementCount, color: '#F5B800', points: achievementPoints },
-    { key: 'toys', label: 'Toys', icon: 'game-controller', count: collectedToyIds.size, color: colors.frost.primary },
-    { key: 'titles', label: 'Titles', icon: 'bookmark', count: collectedTitleIds.size, color: colors.arcane.primary },
-    { key: 'heirlooms', label: 'Heirlooms', icon: 'diamond', count: collectedHeirloomIds.size, color: colors.fire.primary },
-    { key: 'transmog', label: 'Transmog', icon: 'shirt', count: transmogCount, color: '#E879F9' },
-    { key: 'recipes', label: 'Recipes', icon: 'flask', count: recipeCount, color: '#FB923C' },
+    { key: 'mounts', label: 'Mounts', icon: 'trophy', count: collectedIds.size || s?.mounts?.count || 0, color: colors.gold.primary },
+    { key: 'pets', label: 'Battle Pets', icon: 'paw', count: collectedPetIds.size || s?.pets?.count || 0, color: colors.fel.primary },
+    { key: 'achievements', label: 'Achievements', icon: 'ribbon', count: achievementCount || s?.achievements?.count || 0, color: '#F5B800', points: achievementPoints || s?.achievements?.points || 0 },
+    { key: 'toys', label: 'Toys', icon: 'game-controller', count: collectedToyIds.size || s?.toys?.count || 0, color: colors.frost.primary },
+    { key: 'titles', label: 'Titles', icon: 'bookmark', count: collectedTitleIds.size || s?.titles?.count || 0, color: colors.arcane.primary },
+    { key: 'heirlooms', label: 'Heirlooms', icon: 'diamond', count: collectedHeirloomIds.size || s?.heirlooms?.count || 0, color: colors.fire.primary },
+    { key: 'transmog', label: 'Transmog', icon: 'shirt', count: transmogCount || s?.transmog?.count || 0, color: '#E879F9' },
+    { key: 'recipes', label: 'Recipes', icon: 'flask', count: recipeCount || s?.recipes?.count || 0, color: '#FB923C' },
   ];
 
   const totalCollected = stats.reduce((s, r) => s + r.count, 0);
@@ -105,12 +108,11 @@ export default function StatsScreen() {
               </View>
             )}
 
-            {/* Collection cards — tappable where routes exist */}
+            {/* Collection cards */}
             <View style={z.grid}>
               {stats.map(stat => {
                 const route = STAT_ROUTES[stat.key];
-                return (
-                <Pressable key={stat.key} style={z.statCard} onPress={route ? () => router.push(route as any) : undefined}>
+                const inner = (
                   <Card variant="default">
                     <View style={z.statInner}>
                       <View style={[z.statIcon, { backgroundColor: stat.color + '18' }]}>
@@ -121,10 +123,20 @@ export default function StatsScreen() {
                       {stat.points !== undefined && stat.points > 0 && (
                         <Text style={z.statPoints}>{stat.points.toLocaleString()} pts</Text>
                       )}
-                      {route && <Ionicons name="chevron-forward" size={10} color={colors.text.tertiary} style={z.statArrow} />}
+                      {route && (
+                        <View style={z.chevron}>
+                          <Ionicons name="chevron-forward" size={12} color={colors.text.tertiary} />
+                        </View>
+                      )}
                     </View>
                   </Card>
-                </Pressable>
+                );
+                return route ? (
+                  <Pressable key={stat.key} style={z.statCard} onPress={() => router.push(route as any)}>
+                    {inner}
+                  </Pressable>
+                ) : (
+                  <View key={stat.key} style={z.statCard}>{inner}</View>
                 );
               })}
             </View>
@@ -182,7 +194,7 @@ const z = StyleSheet.create({
   statCount: { fontSize: 22, fontWeight: '700', color: colors.text.primary },
   statLabel: { ...typography.label, fontSize: 10 },
   statPoints: { fontSize: 10, fontWeight: '600', color: colors.gold.dim },
-  statArrow: { position: 'absolute', right: 6, top: 6 },
+  chevron: { position: 'absolute', top: 8, right: 8, opacity: 0.5 },
   section: { gap: spacing.sm },
   sectionTitle: { ...typography.heading },
   breakdownCard: { backgroundColor: colors.bg.secondary, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, overflow: 'hidden' },

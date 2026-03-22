@@ -74,7 +74,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUserId(me.user_id);
       setBattletag(me.battletag);
       setHasBnet(me.has_bnet);
-    } catch {}
+    } catch (e) {
+      console.error('refreshMe failed:', e);
+    }
   }, []);
 
   const loadCollected = useCallback(async (char: SelectedChar) => {
@@ -101,43 +103,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         api.getCharacterAchievements(char.realm_slug, char.character_name),
         api.getCharacterTransmog(char.realm_slug, char.character_name),
         api.getCharacterProfessions(char.realm_slug, char.character_name),
-        api.getCharacterReputations(char.realm_slug, char.character_name),
-      ]).then(([pets, toys, titles, heirlooms, achievements, transmog, professions, reputations]) => {
-        if (pets.status === 'fulfilled') setCollectedPetIds(new Set(pets.value.pets.map(p => p.species_id)));
-        if (toys.status === 'fulfilled') setCollectedToyIds(new Set(toys.value.toys.map(t => t.id)));
-        if (titles.status === 'fulfilled') setCollectedTitleIds(new Set(titles.value.titles.map(t => t.id)));
-        if (heirlooms.status === 'fulfilled') setCollectedHeirloomIds(new Set(heirlooms.value.heirlooms.map(h => h.id)));
-        if (achievements.status === 'fulfilled') {
-          setAchievementCount(achievements.value.total_quantity);
-          setAchievementPoints(achievements.value.total_points);
-          // Store individual completed achievement IDs
-          setCompletedAchievementIds(new Set(
-            achievements.value.achievements
-              .filter(a => a.completed_timestamp)
-              .map(a => a.id)
-          ));
-        }
-        if (transmog.status === 'fulfilled') setTransmogCount(transmog.value.appearance_count);
-        if (professions.status === 'fulfilled') {
-          setRecipeCount(professions.value.total_recipes);
-          // Store profession names for requirement checking
-          const profNames = new Set<string>();
-          for (const p of [...professions.value.primaries, ...professions.value.secondaries]) {
-            profNames.add(p.name.toLowerCase());
-          }
-          setCharacterProfessions(profNames);
-        }
-        if (reputations.status === 'fulfilled') {
-          const repMap = new Map<number, { name: string; standing: string }>();
-          for (const r of reputations.value.reputations) {
-            if (r.faction_id && r.standing_name) {
-              repMap.set(r.faction_id, { name: r.faction_name, standing: r.standing_name });
+      ]).then(([pets, toys, titles, heirlooms, achievements, transmog, professions]) => {
+        try {
+          if (pets.status === 'fulfilled') setCollectedPetIds(new Set(pets.value.pets.map(p => p.species_id)));
+          if (toys.status === 'fulfilled') setCollectedToyIds(new Set(toys.value.toys.map(t => t.id)));
+          if (titles.status === 'fulfilled') setCollectedTitleIds(new Set(titles.value.titles.map(t => t.id)));
+          if (heirlooms.status === 'fulfilled') setCollectedHeirloomIds(new Set(heirlooms.value.heirlooms.map(h => h.id)));
+          if (achievements.status === 'fulfilled') {
+            setAchievementCount(achievements.value.total_quantity ?? 0);
+            setAchievementPoints(achievements.value.total_points ?? 0);
+            if (Array.isArray(achievements.value?.achievements)) {
+              setCompletedAchievementIds(new Set(
+                achievements.value.achievements
+                  .filter(a => a.completed_timestamp)
+                  .map(a => a.id)
+              ));
             }
           }
-          setReputationStandings(repMap);
+          if (transmog.status === 'fulfilled') setTransmogCount(transmog.value.appearance_count);
+          if (professions.status === 'fulfilled') {
+            setRecipeCount(professions.value.total_recipes ?? 0);
+            const profNames = new Set<string>();
+            const allProfs = [...(professions.value.primaries || []), ...(professions.value.secondaries || [])];
+            for (const p of allProfs) {
+              if (p.name) profNames.add(p.name.toLowerCase());
+            }
+            setCharacterProfessions(profNames);
+          }
+        } catch (e) {
+          console.warn('Error processing collections:', e);
         }
       });
-    } catch {
+
+      // Reputations loaded separately — can be slow and shouldn't block other counts
+      api.getCharacterReputations(char.realm_slug, char.character_name)
+        .then(data => {
+          if (Array.isArray(data?.reputations)) {
+            const repMap = new Map<number, { name: string; standing: string }>();
+            for (const r of data.reputations) {
+              if (r.faction_id && r.standing_name) {
+                repMap.set(r.faction_id, { name: r.faction_name, standing: r.standing_name });
+              }
+            }
+            setReputationStandings(repMap);
+          }
+        })
+        .catch((e) => console.warn('Reputations fetch failed:', e));
+    } catch (e) {
+      console.error('loadCollected failed:', e);
       setCollectedIds(new Set());
     } finally {
       setLoadingCollected(false);
@@ -185,7 +198,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setUserId(me.user_id);
         setBattletag(me.battletag);
         setHasBnet(me.has_bnet);
-      } catch {
+      } catch (e) {
+        console.warn('getMe failed, falling back to device auth:', e);
         const deviceId = await api.getDeviceId();
         await api.deviceAuth(deviceId);
       }
@@ -211,9 +225,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               await SecureStore.setItemAsync('selected_char', JSON.stringify(char));
               loadCollected(char);
             }
-          } catch {}
+          } catch (e) {
+            console.warn('Auto-select favorite failed:', e);
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Character restore failed:', e);
+      }
       setIsReady(true);
     })();
   }, [loadCollected]);

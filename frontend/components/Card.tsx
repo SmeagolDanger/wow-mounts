@@ -22,9 +22,9 @@ export default function Card({children,variant='default',onPress,style,noPadding
 }
 
 const s = StyleSheet.create({
-  grad:{borderRadius:radii.lg,padding:1.5,...shadows.card},
-  plain:{borderRadius:radii.lg,borderWidth:1,...shadows.card},
-  inner:{borderRadius:radii.lg-1,overflow:'hidden'},
+  grad:{borderRadius:radii.lg,padding:1.5,...shadows.card,flex:1},
+  plain:{borderRadius:radii.lg,borderWidth:1,...shadows.card,flex:1},
+  inner:{borderRadius:radii.lg-1,overflow:'hidden',flex:1},
   pad:{padding:spacing.lg},
   pressed:{opacity:0.88,transform:[{scale:0.985}]},
 });

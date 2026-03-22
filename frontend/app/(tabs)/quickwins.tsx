@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii } from '../../theme';
 import { Card, MountDetailModal } from '../../components';
@@ -23,9 +24,17 @@ const DIFF: Record<string,{rank:number;label:string;icon:string;color:string;tip
 type MountWithReqs = MountSummary & { reqCheck?: RequirementCheck };
 interface QWGroup { source:string; info:typeof DIFF[string]; mounts:MountWithReqs[]; }
 
+const COLLECTION_LINKS = [
+  { key: 'toys', label: 'Toys', icon: 'game-controller' as const, color: colors.frost.primary, route: '/(tabs)/missingtoys' },
+  { key: 'pets', label: 'Pets', icon: 'paw' as const, color: colors.fel.primary, route: '/(tabs)/missingpets' },
+  { key: 'titles', label: 'Titles', icon: 'bookmark' as const, color: colors.arcane.primary, route: '/(tabs)/missingtitles' },
+];
+
 export default function QuickWinsScreen() {
+  const router = useRouter();
   const {
     collectedIds, selectedChar,
+    collectedToyIds, collectedPetIds, collectedTitleIds,
     characterClass, characterRace, reputationStandings, completedAchievementIds, characterProfessions,
   } = useApp();
   const [mounts, setMounts] = useState<MountSummary[]>([]);
@@ -132,6 +141,30 @@ export default function QuickWinsScreen() {
                 </Pressable>
               </View>
             )}
+
+            {/* Quick links to other collection missing lists */}
+            {selectedChar && (
+              <View style={z.collectionLinks}>
+                <Text style={z.collectionLinksTitle}>More Collections</Text>
+                <View style={z.collectionLinkRow}>
+                  {COLLECTION_LINKS.map(link => {
+                    const collected = link.key === 'toys' ? collectedToyIds.size
+                      : link.key === 'pets' ? collectedPetIds.size
+                      : collectedTitleIds.size;
+                    return (
+                      <Pressable key={link.key} onPress={() => router.push(link.route as any)} style={z.collectionLinkCard}>
+                        <View style={[z.collectionLinkIcon, { backgroundColor: link.color + '18' }]}>
+                          <Ionicons name={link.icon} size={16} color={link.color} />
+                        </View>
+                        <Text style={z.collectionLinkLabel}>{link.label}</Text>
+                        <Text style={[z.collectionLinkCount, { color: link.color }]}>{collected}</Text>
+                        <Ionicons name="chevron-forward" size={12} color={colors.text.tertiary} />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
           </View>
         }
         renderItem={({ item: g }) => {
@@ -235,6 +268,13 @@ const z = StyleSheet.create({
   filterBtnActive:{backgroundColor:colors.gold.primary,borderColor:colors.gold.primary},
   filterBtnT:{fontSize:11,color:colors.text.secondary},
   filterBtnTActive:{color:colors.bg.primary,fontWeight:'600'},
+  collectionLinks:{gap:spacing.sm,marginTop:spacing.sm},
+  collectionLinksTitle:{...typography.label,color:colors.text.tertiary,marginBottom:2},
+  collectionLinkRow:{gap:spacing.xs},
+  collectionLinkCard:{flexDirection:'row',alignItems:'center',gap:spacing.sm,backgroundColor:colors.bg.secondary,borderRadius:radii.md,padding:spacing.sm,borderWidth:1,borderColor:colors.border.default},
+  collectionLinkIcon:{width:28,height:28,borderRadius:radii.sm,alignItems:'center',justifyContent:'center'},
+  collectionLinkLabel:{flex:1,fontSize:13,fontWeight:'600',color:colors.text.primary},
+  collectionLinkCount:{fontSize:13,fontWeight:'700',marginRight:spacing.xs},
   more:{paddingVertical:spacing.sm,alignItems:'center'},
   moreT:{fontSize:11,color:colors.gold.primary,fontWeight:'600'},
   empty:{alignItems:'center',paddingVertical:80,gap:spacing.md,paddingHorizontal:spacing.xl},

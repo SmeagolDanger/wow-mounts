@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { colors, spacing, typography, radii } from '../../theme';
 import { Card } from '../../components';
 import api, { AchievementCategory, AchievementEntry } from '../../services/api';
@@ -46,6 +47,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function AchievementsScreen() {
+  const router = useRouter();
   const { selectedChar, achievementCount, achievementPoints } = useApp();
   const [categories, setCategories] = useState<AchievementCategory[]>([]);
   const [achievements, setAchievements] = useState<AchievementEntry[]>([]);
@@ -103,6 +105,9 @@ export default function AchievementsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold.primary} progressBackgroundColor={colors.bg.secondary} />}
         ListHeaderComponent={
           <View style={z.hdr}>
+            <Pressable onPress={() => router.back()} style={z.back}>
+              <Ionicons name="arrow-back" size={20} color={colors.text.secondary} />
+            </Pressable>
             <Text style={z.title}>Achievements</Text>
             <Card variant="gold" style={z.heroCard}>
               <View style={z.heroRow}>
@@ -187,6 +192,7 @@ const z = StyleSheet.create({
   loadT: { ...typography.body, color: colors.text.secondary },
   list: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
   hdr: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  back: { width: 32, height: 32, borderRadius: radii.full, backgroundColor: colors.bg.secondary, alignItems: 'center', justifyContent: 'center' },
   title: { ...typography.display, color: colors.gold.bright },
   heroCard: { padding: spacing.lg },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },

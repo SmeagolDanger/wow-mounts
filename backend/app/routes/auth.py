@@ -42,9 +42,22 @@ APP_SCHEME = "wowmounts"
 
 
 def create_jwt(user_id: int, battletag: str = None) -> str:
+    """Short-lived access token (15 minutes)."""
     payload = {
         "sub": str(user_id),
         "battletag": battletag,
+        "type": "access",
+        "iat": datetime.now(UTC),
+        "exp": datetime.now(UTC) + timedelta(minutes=15),
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+
+
+def create_refresh_token(user_id: int) -> str:
+    """Long-lived refresh token (30 days)."""
+    payload = {
+        "sub": str(user_id),
+        "type": "refresh",
         "iat": datetime.now(UTC),
         "exp": datetime.now(UTC) + timedelta(days=30),
     }
@@ -192,7 +205,8 @@ async def device_auth(device_id: str = Query(...), db: AsyncSession = Depends(ge
         await db.refresh(user)
 
     token = create_jwt(user.id)
-    return {"token": token, "user_id": user.id, "battletag": user.battletag}
+    refresh = create_refresh_token(user.id)
+    return {"token": token, "refresh_token": refresh, "user_id": user.id, "battletag": user.battletag}
 
 
 # ── Battle.net OAuth ─────────────────────────────────────────────────
@@ -300,9 +314,10 @@ async def bnet_callback(
     await db.refresh(user)
 
     app_token = create_jwt(user.id, battletag)
+    refresh = create_refresh_token(user.id)
 
     # Build deep link — use app_redirect from state if available (Expo Go uses exp:// scheme)
-    link_params = {"token": app_token, "battletag": battletag, "user_id": str(user.id)}
+    link_params = {"token": app_token, "refresh_token": refresh, "battletag": battletag, "user_id": str(user.id)}
     if app_redirect_base:
         separator = "&" if "?" in app_redirect_base else "?"
         deep_link = f"{app_redirect_base}{separator}{urlencode(link_params)}"
@@ -315,6 +330,30 @@ async def bnet_callback(
     # Using HTML instead of a raw 302 because mobile browsers sometimes block
     # custom-scheme redirects from a server redirect.
     return HTMLResponse(_build_fallback_html(deep_link, battletag))
+
+
+# ── Token Refresh ────────────────────────────────────────────────────
+
+
+@router.post("/refresh")
+async def refresh_token(
+    token: str = Depends(_extract_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Exchange a valid refresh token for a new access + refresh token pair."""
+    payload = decode_jwt(token)
+    if payload.get("type") != "refresh":
+        raise HTTPException(400, "Expected a refresh token")
+
+    user_id = int(payload["sub"])
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    new_access = create_jwt(user.id, user.battletag)
+    new_refresh = create_refresh_token(user.id)
+    return {"token": new_access, "refresh_token": new_refresh}
 
 
 # ── User Info ────────────────────────────────────────────────────────

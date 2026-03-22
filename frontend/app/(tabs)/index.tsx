@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography, radii, shadows } from '../../theme';
+import { colors, spacing, typography, radii } from '../../theme';
 import { SearchBar, MountCard, ProgressRing, MountDetailModal, Card } from '../../components';
 import api, { MountSummary, FavChar, WowChar } from '../../services/api';
 
