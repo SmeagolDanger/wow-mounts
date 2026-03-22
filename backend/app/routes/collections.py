@@ -558,9 +558,45 @@ async def get_all_titles(token: str = Depends(_extract_token)):
     return {"titles": titles, "total": len(titles)}
 
 
+# ── In-memory icon cache for pets ─────────────────────────────────────
+# Maps species_id → {"icon": url, "zoom": url}
+_PET_MEDIA_CACHE: dict[int, dict[str, str | None]] = {}
+
+
+@router.get("/pets/icons")
+async def get_pet_icons(
+    ids: str = Query(..., description="Comma-separated species IDs (max 20)"),
+    token: str = Depends(_extract_token),
+):
+    """Batch-fetch pet species media. Returns icon and zoom URLs per species."""
+    import asyncio
+
+    species_ids = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()][:20]
+    icons: dict[str, dict[str, str | None]] = {}
+
+    async def fetch_one(sid: int):
+        if sid in _PET_MEDIA_CACHE:
+            icons[str(sid)] = _PET_MEDIA_CACHE[sid]
+            return
+        try:
+            media = await blizzard_api.get_pet_species_media(sid)
+            assets = media.get("assets", [])
+            icon_url = next((a["value"] for a in assets if a.get("key") == "icon"), None)
+            zoom_url = next((a["value"] for a in assets if a.get("key") == "zoom"), None)
+            entry = {"icon": icon_url, "zoom": zoom_url}
+            _PET_MEDIA_CACHE[sid] = entry
+            icons[str(sid)] = entry
+        except Exception:
+            entry = {"icon": None, "zoom": None}
+            _PET_MEDIA_CACHE[sid] = entry
+            icons[str(sid)] = entry
+
+    await asyncio.gather(*(fetch_one(sid) for sid in species_ids))
+    return {"icons": icons}
+
+
 # ── Pet Detail ───────────────────────────────────────────────────────
 
-# In-memory cache for pet details (species data doesn't change often)
 _PET_DETAIL_CACHE: dict[int, dict] = {}
 
 
@@ -665,40 +701,3 @@ async def get_pet_detail(
 
     _PET_DETAIL_CACHE[species_id] = result
     return result
-
-
-# ── In-memory icon cache for pets ─────────────────────────────────────
-# Maps species_id → {"icon": url, "zoom": url}
-_PET_MEDIA_CACHE: dict[int, dict[str, str | None]] = {}
-
-
-@router.get("/pets/icons")
-async def get_pet_icons(
-    ids: str = Query(..., description="Comma-separated species IDs (max 20)"),
-    token: str = Depends(_extract_token),
-):
-    """Batch-fetch pet species media. Returns icon and zoom URLs per species."""
-    import asyncio
-
-    species_ids = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()][:20]
-    icons: dict[str, dict[str, str | None]] = {}
-
-    async def fetch_one(sid: int):
-        if sid in _PET_MEDIA_CACHE:
-            icons[str(sid)] = _PET_MEDIA_CACHE[sid]
-            return
-        try:
-            media = await blizzard_api.get_pet_species_media(sid)
-            assets = media.get("assets", [])
-            icon_url = next((a["value"] for a in assets if a.get("key") == "icon"), None)
-            zoom_url = next((a["value"] for a in assets if a.get("key") == "zoom"), None)
-            entry = {"icon": icon_url, "zoom": zoom_url}
-            _PET_MEDIA_CACHE[sid] = entry
-            icons[str(sid)] = entry
-        except Exception:
-            entry = {"icon": None, "zoom": None}
-            _PET_MEDIA_CACHE[sid] = entry
-            icons[str(sid)] = entry
-
-    await asyncio.gather(*(fetch_one(sid) for sid in species_ids))
-    return {"icons": icons}
