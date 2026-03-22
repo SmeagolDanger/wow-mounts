@@ -594,11 +594,11 @@ async def get_pet_detail(
 
         ab_ids = [ab.get("ability", {}).get("id") for ab in raw_abilities if ab.get("ability", {}).get("id")]
         results = await asyncio.gather(*(fetch_ability(aid) for aid in ab_ids))
-        for aid, detail in zip(ab_ids, results):
+        for aid, detail in zip(ab_ids, results, strict=False):
             if detail:
                 ability_details[aid] = detail
     except Exception:
-        pass
+        logger.debug("Failed to fetch ability details for pet %d", species_id)
 
     abilities = []
     for ab in raw_abilities:
@@ -640,7 +640,7 @@ async def get_pet_detail(
         icon_url = next((a["value"] for a in assets if a.get("key") == "icon"), None)
         zoom_url = next((a["value"] for a in assets if a.get("key") == "zoom"), None)
     except Exception:
-        pass
+        logger.debug("Failed to fetch media for pet %d", species_id)
 
     result = {
         "id": species_id,
