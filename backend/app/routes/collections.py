@@ -1,6 +1,7 @@
 """Unified character collection routes: pets, toys, achievements, titles, reputations, heirlooms."""
 
 import logging
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,20 @@ from app.services.blizzard import blizzard_api
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/collections", tags=["collections"])
+
+# ── Simple in-memory cache for game-data indexes (TTL 1 hour) ────────
+_INDEX_CACHE: dict[str, tuple[float, list]] = {}
+_INDEX_TTL = 3600  # seconds
+
+
+async def _get_cached_index(key: str, fetcher):
+    """Return cached game-data index, refreshing if stale."""
+    now = time.time()
+    if key in _INDEX_CACHE and now - _INDEX_CACHE[key][0] < _INDEX_TTL:
+        return _INDEX_CACHE[key][1]
+    data = await fetcher()
+    _INDEX_CACHE[key] = (now, data)
+    return data
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -493,3 +508,42 @@ async def get_collection_summary(
             summary[key]["points"] = points
 
     return {"summary": summary, "realm": realm, "character": name}
+
+
+# ── Game Data Indexes (all items in the game) ────────────────────────
+
+
+@router.get("/toys/all")
+async def get_all_toys(token: str = Depends(_extract_token)):
+    """Return every toy in the game (cached 1 hr)."""
+
+    async def fetch():
+        data = await blizzard_api.get_toy_index()
+        return [{"id": t.get("id"), "name": t.get("name")} for t in data.get("toys", []) if t.get("id")]
+
+    toys = await _get_cached_index("toys", fetch)
+    return {"toys": toys, "total": len(toys)}
+
+
+@router.get("/pets/all")
+async def get_all_pets(token: str = Depends(_extract_token)):
+    """Return every battle pet species in the game (cached 1 hr)."""
+
+    async def fetch():
+        data = await blizzard_api.get_pet_index()
+        return [{"id": p.get("id"), "name": p.get("name")} for p in data.get("pets", []) if p.get("id")]
+
+    pets = await _get_cached_index("pets", fetch)
+    return {"pets": pets, "total": len(pets)}
+
+
+@router.get("/titles/all")
+async def get_all_titles(token: str = Depends(_extract_token)):
+    """Return every title in the game (cached 1 hr)."""
+
+    async def fetch():
+        data = await blizzard_api.get_title_index()
+        return [{"id": t.get("id"), "name": t.get("name")} for t in data.get("titles", []) if t.get("id")]
+
+    titles = await _get_cached_index("titles", fetch)
+    return {"titles": titles, "total": len(titles)}

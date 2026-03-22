@@ -19,7 +19,7 @@ function AppShell() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg.primary } }}>
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="auth/callback" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="auth" options={{ presentation: 'modal', headerShown: false }} />
     </Stack>
   );
 }

@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import api, { CollectionSummary } from '../services/api';
+import api, { CollectionSummary, ReputationEntry } from '../services/api';
 
 export interface SelectedChar {
   realm_slug: string;
@@ -8,6 +8,8 @@ export interface SelectedChar {
   display: string;
   avatar_url?: string | null;
   faction?: string | null; // 'alliance' | 'horde' | null
+  class_name?: string | null;
+  race_name?: string | null;
 }
 
 interface AppContextType {
@@ -27,6 +29,12 @@ interface AppContextType {
   achievementPoints: number;
   collectionSummary: CollectionSummary | null;
   loadingCollected: boolean;
+  // Detailed character data for requirement checking
+  characterClass: string | null;
+  characterRace: string | null;
+  reputationStandings: Map<number, { name: string; standing: string }>;
+  completedAchievementIds: Set<number>;
+  characterProfessions: Set<string>;
   selectCharacter: (char: SelectedChar) => Promise<void>;
   clearCharacter: () => void;
   refreshMe: () => Promise<void>;
@@ -53,6 +61,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [achievementPoints, setAchievementPoints] = useState(0);
   const [collectionSummary, setCollectionSummary] = useState<CollectionSummary | null>(null);
   const [loadingCollected, setLoadingCollected] = useState(false);
+  const [characterClass, setCharacterClass] = useState<string | null>(null);
+  const [characterRace, setCharacterRace] = useState<string | null>(null);
+  const [reputationStandings, setReputationStandings] = useState<Map<number, { name: string; standing: string }>>(new Map());
+  const [completedAchievementIds, setCompletedAchievementIds] = useState<Set<number>>(new Set());
+  const [characterProfessions, setCharacterProfessions] = useState<Set<string>>(new Set());
   const init = useRef(false);
 
   const refreshMe = useCallback(async () => {
@@ -75,6 +88,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCollectedIds(new Set((mountData.mounts || []).map((m: any) => m.mount.id)));
       if (summary) setCollectionSummary(summary);
 
+      // Extract class and race from the lookup response
+      if (mountData.class) setCharacterClass(mountData.class);
+      if (mountData.race) setCharacterRace(mountData.race);
+
       // Load other collections in the background (non-blocking)
       Promise.allSettled([
         api.getCharacterPets(char.realm_slug, char.character_name),
@@ -84,7 +101,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         api.getCharacterAchievements(char.realm_slug, char.character_name),
         api.getCharacterTransmog(char.realm_slug, char.character_name),
         api.getCharacterProfessions(char.realm_slug, char.character_name),
-      ]).then(([pets, toys, titles, heirlooms, achievements, transmog, professions]) => {
+        api.getCharacterReputations(char.realm_slug, char.character_name),
+      ]).then(([pets, toys, titles, heirlooms, achievements, transmog, professions, reputations]) => {
         if (pets.status === 'fulfilled') setCollectedPetIds(new Set(pets.value.pets.map(p => p.species_id)));
         if (toys.status === 'fulfilled') setCollectedToyIds(new Set(toys.value.toys.map(t => t.id)));
         if (titles.status === 'fulfilled') setCollectedTitleIds(new Set(titles.value.titles.map(t => t.id)));
@@ -92,9 +110,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (achievements.status === 'fulfilled') {
           setAchievementCount(achievements.value.total_quantity);
           setAchievementPoints(achievements.value.total_points);
+          // Store individual completed achievement IDs
+          setCompletedAchievementIds(new Set(
+            achievements.value.achievements
+              .filter(a => a.completed_timestamp)
+              .map(a => a.id)
+          ));
         }
         if (transmog.status === 'fulfilled') setTransmogCount(transmog.value.appearance_count);
-        if (professions.status === 'fulfilled') setRecipeCount(professions.value.total_recipes);
+        if (professions.status === 'fulfilled') {
+          setRecipeCount(professions.value.total_recipes);
+          // Store profession names for requirement checking
+          const profNames = new Set<string>();
+          for (const p of [...professions.value.primaries, ...professions.value.secondaries]) {
+            profNames.add(p.name.toLowerCase());
+          }
+          setCharacterProfessions(profNames);
+        }
+        if (reputations.status === 'fulfilled') {
+          const repMap = new Map<number, { name: string; standing: string }>();
+          for (const r of reputations.value.reputations) {
+            if (r.faction_id && r.standing_name) {
+              repMap.set(r.faction_id, { name: r.faction_name, standing: r.standing_name });
+            }
+          }
+          setReputationStandings(repMap);
+        }
       });
     } catch {
       setCollectedIds(new Set());
@@ -126,6 +167,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAchievementCount(0);
     setAchievementPoints(0);
     setCollectionSummary(null);
+    setCharacterClass(null);
+    setCharacterRace(null);
+    setReputationStandings(new Map());
+    setCompletedAchievementIds(new Set());
+    setCharacterProfessions(new Set());
     SecureStore.deleteItemAsync('selected_char').catch(() => {});
   }, []);
 
@@ -178,7 +224,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedChar, collectedIds, collectedPetIds, collectedToyIds,
       collectedTitleIds, collectedHeirloomIds, transmogCount, recipeCount,
       achievementCount, achievementPoints, collectionSummary,
-      loadingCollected, selectCharacter, clearCharacter, refreshMe, refreshCollections,
+      loadingCollected,
+      characterClass, characterRace, reputationStandings, completedAchievementIds, characterProfessions,
+      selectCharacter, clearCharacter, refreshMe, refreshCollections,
     }}>
       {children}
     </AppContext.Provider>

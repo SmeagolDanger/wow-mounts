@@ -71,6 +71,17 @@ class ApiService {
   async getCharacterTransmog(realm:string,name:string,region='us') {
     return this.request<TransmogData>('/collections/transmog',{},{realm,name,region});
   }
+
+  // ── Game Data Indexes (all items in the game) ──────────────────────
+  async getAllToys() {
+    return this.request<{toys:GameItem[];total:number}>('/collections/toys/all');
+  }
+  async getAllPets() {
+    return this.request<{pets:GameItem[];total:number}>('/collections/pets/all');
+  }
+  async getAllTitles() {
+    return this.request<{titles:GameItem[];total:number}>('/collections/titles/all');
+  }
 }
 
 // ── Interfaces ───────────────────────────────────────────────────────
@@ -113,6 +124,7 @@ export interface ProfessionEntry { id:number; name:string; tiers:ProfessionTier[
 export interface ProfessionData { primaries:ProfessionEntry[]; secondaries:ProfessionEntry[]; total_recipes:number; }
 export interface TransmogSet { id:number; name:string; }
 export interface TransmogData { appearance_count:number; set_count:number; sets:TransmogSet[]; }
+export interface GameItem { id:number; name:string; }
 
 export const api = new ApiService();
 export default api;

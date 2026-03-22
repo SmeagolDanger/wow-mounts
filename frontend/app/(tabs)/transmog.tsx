@@ -1,18 +1,21 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator,
+  View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii } from '../../theme';
 import { Card } from '../../components';
 import api, { TransmogData } from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
+import { CLASS_ARMOR_TYPE } from '../../data/collectionRequirements';
 
 const ACCENT = '#E879F9';
 
 export default function TransmogScreen() {
-  const { selectedChar } = useApp();
+  const router = useRouter();
+  const { selectedChar, characterClass } = useApp();
   const [data, setData] = useState<TransmogData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,7 +57,16 @@ export default function TransmogScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} progressBackgroundColor={colors.bg.secondary} />}
         ListHeaderComponent={
           <View style={z.hdr}>
+            <Pressable onPress={() => router.back()} style={z.back}>
+              <Ionicons name="arrow-back" size={20} color={colors.text.secondary} />
+            </Pressable>
             <Text style={z.title}>Transmog</Text>
+            {characterClass && (
+              <View style={z.armorRow}>
+                <Ionicons name="shield-outline" size={14} color={ACCENT} />
+                <Text style={z.armorText}>{characterClass} — {CLASS_ARMOR_TYPE[characterClass] || 'Unknown'} armor</Text>
+              </View>
+            )}
             <Card variant="default" style={z.heroCard}>
               <View style={z.heroRow}>
                 <View style={z.heroStat}>
@@ -119,4 +131,7 @@ const z = StyleSheet.create({
   emptyFull: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingHorizontal: spacing.xl },
   emptyTitle: { ...typography.heading, color: colors.text.secondary },
   emptySub: { ...typography.caption, color: colors.text.tertiary, textAlign: 'center', lineHeight: 18 },
+  back: { width: 32, height: 32, borderRadius: radii.full, backgroundColor: colors.bg.secondary, alignItems: 'center', justifyContent: 'center' },
+  armorRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  armorText: { ...typography.caption, color: ACCENT, fontWeight: '600' },
 });

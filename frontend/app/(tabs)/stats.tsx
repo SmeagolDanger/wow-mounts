@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii } from '../../theme';
 import { Card } from '../../components';
@@ -15,9 +16,20 @@ interface StatRow {
   count: number;
   color: string;
   points?: number;
+  route?: string;
 }
 
+const STAT_ROUTES: Record<string, string> = {
+  mounts: '/quickwins',
+  pets: '/missingpets',
+  toys: '/missingtoys',
+  titles: '/missingtitles',
+  transmog: '/transmog',
+  recipes: '/professions',
+};
+
 export default function StatsScreen() {
+  const router = useRouter();
   const {
     selectedChar, collectedIds, collectedPetIds, collectedToyIds,
     collectedTitleIds, collectedHeirloomIds, transmogCount, recipeCount,
@@ -95,8 +107,10 @@ export default function StatsScreen() {
 
             {/* Collection cards — tappable where routes exist */}
             <View style={z.grid}>
-              {stats.map(stat => (
-                <View key={stat.key} style={z.statCard}>
+              {stats.map(stat => {
+                const route = STAT_ROUTES[stat.key];
+                return (
+                <Pressable key={stat.key} style={z.statCard} onPress={route ? () => router.push(route as any) : undefined}>
                   <Card variant="default">
                     <View style={z.statInner}>
                       <View style={[z.statIcon, { backgroundColor: stat.color + '18' }]}>
@@ -107,10 +121,12 @@ export default function StatsScreen() {
                       {stat.points !== undefined && stat.points > 0 && (
                         <Text style={z.statPoints}>{stat.points.toLocaleString()} pts</Text>
                       )}
+                      {route && <Ionicons name="chevron-forward" size={10} color={colors.text.tertiary} style={z.statArrow} />}
                     </View>
                   </Card>
-                </View>
-              ))}
+                </Pressable>
+                );
+              })}
             </View>
 
             {/* Breakdown list */}
@@ -160,12 +176,13 @@ const z = StyleSheet.create({
   loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   loadingText: { ...typography.caption, color: colors.text.tertiary },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  statCard: { width: '48.5%' },
-  statInner: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
+  statCard: { width: '48.5%', height: 140 },
+  statInner: { alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.md, flex: 1 },
   statIcon: { width: 40, height: 40, borderRadius: radii.full, alignItems: 'center', justifyContent: 'center' },
   statCount: { fontSize: 22, fontWeight: '700', color: colors.text.primary },
   statLabel: { ...typography.label, fontSize: 10 },
   statPoints: { fontSize: 10, fontWeight: '600', color: colors.gold.dim },
+  statArrow: { position: 'absolute', right: 6, top: 6 },
   section: { gap: spacing.sm },
   sectionTitle: { ...typography.heading },
   breakdownCard: { backgroundColor: colors.bg.secondary, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, overflow: 'hidden' },

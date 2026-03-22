@@ -6,6 +6,7 @@ import { colors, spacing, typography, radii } from '../../theme';
 import { Card, MountDetailModal } from '../../components';
 import api, { MountSummary } from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
+import { checkMountRequirements, describeRequirement, RequirementCheck } from '../../data/mountRequirements';
 
 const DIFF: Record<string,{rank:number;label:string;icon:string;color:string;tip:string}> = {
   vendor:      {rank:1,label:'Vendor',      icon:'cart-outline',          color:'#E2E8F0',tip:'Buy directly from a vendor.'},
@@ -19,30 +20,61 @@ const DIFF: Record<string,{rank:number;label:string;icon:string;color:string;tip
   world_boss:  {rank:9,label:'World Boss',   icon:'flame-outline',         color:'#FB923C',tip:'Weekly kill — ~1-3% drop rate.'},
 };
 
-interface QWGroup { source:string; info:typeof DIFF[string]; mounts:MountSummary[]; }
+type MountWithReqs = MountSummary & { reqCheck?: RequirementCheck };
+interface QWGroup { source:string; info:typeof DIFF[string]; mounts:MountWithReqs[]; }
 
 export default function QuickWinsScreen() {
-  const { collectedIds, selectedChar } = useApp();
+  const {
+    collectedIds, selectedChar,
+    characterClass, characterRace, reputationStandings, completedAchievementIds, characterProfessions,
+  } = useApp();
   const [mounts, setMounts] = useState<MountSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<number|null>(null);
   const [expanded, setExpanded] = useState<string|null>(null);
+  const [hideUnobtainable, setHideUnobtainable] = useState(true);
+  const [hideUnmetReqs, setHideUnmetReqs] = useState(false);
 
   const load = useCallback(async () => { try { setMounts((await api.getMounts()).mounts); } catch {} finally { setLoading(false); } }, []);
   const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
   useEffect(() => { load(); }, [load]);
 
-  const groups = useMemo(() => {
+  const charData = useMemo(() => ({
+    className: characterClass,
+    raceName: characterRace,
+    faction: selectedChar?.faction,
+    reputations: reputationStandings,
+    achievementIds: completedAchievementIds,
+    professions: characterProfessions,
+  }), [characterClass, characterRace, selectedChar?.faction, reputationStandings, completedAchievementIds, characterProfessions]);
+
+  const { groups, unobtainableCount } = useMemo(() => {
     const charFaction = selectedChar?.faction?.toLowerCase();
-    const missing = mounts.filter(m => {
+    let unobtCount = 0;
+    const missing: MountWithReqs[] = mounts.filter(m => {
       if (!m.source_type) return false;
       if (selectedChar && collectedIds.has(m.id)) return false;
-      // Hide mounts restricted to opposing faction when we know the character's faction
       if (charFaction && m.faction && m.faction !== charFaction) return false;
       return true;
+    }).map(m => {
+      const reqCheck = selectedChar ? checkMountRequirements(m.id, charData) : undefined;
+      return { ...m, reqCheck };
+    }).filter(m => {
+      // Filter unobtainable mounts
+      if (m.reqCheck) {
+        const isUnobtainable = m.reqCheck.unmet.some(r => r.type === 'unobtainable');
+        if (isUnobtainable) { unobtCount++; if (hideUnobtainable) return false; }
+        // Filter class-restricted mounts (hard filter — can never get on wrong class)
+        const classBlocked = m.reqCheck.unmet.some(r => r.type === 'class');
+        if (classBlocked) return false;
+        // Optionally hide mounts with unmet requirements
+        if (hideUnmetReqs && !m.reqCheck.met) return false;
+      }
+      return true;
     });
-    const map = new Map<string, MountSummary[]>();
+
+    const map = new Map<string, MountWithReqs[]>();
     for (const m of missing) {
       const s = m.source_type!;
       if (!map.has(s)) map.set(s, []);
@@ -53,8 +85,8 @@ export default function QuickWinsScreen() {
       const info = DIFF[source];
       if (info) r.push({ source, info, mounts: list });
     }
-    return r.sort((a, b) => a.info.rank - b.info.rank);
-  }, [mounts, collectedIds, selectedChar]);
+    return { groups: r.sort((a, b) => a.info.rank - b.info.rank), unobtainableCount: unobtCount };
+  }, [mounts, collectedIds, selectedChar, charData, hideUnobtainable, hideUnmetReqs]);
 
   const totalMissing = useMemo(() => {
     if (!selectedChar) return mounts.length;
@@ -86,6 +118,20 @@ export default function QuickWinsScreen() {
                 <View style={z.st}><Ionicons name="layers-outline" size={18} color={colors.frost.primary}/><Text style={z.sn}>{groups.length}</Text><Text style={z.sl}>SOURCES</Text></View>
               </View>
             </Card>
+            {selectedChar && (
+              <View style={z.filters}>
+                <Pressable onPress={() => setHideUnobtainable(h => !h)} style={[z.filterBtn, hideUnobtainable && z.filterBtnActive]}>
+                  <Ionicons name={hideUnobtainable ? 'eye-off' : 'eye'} size={12} color={hideUnobtainable ? colors.bg.primary : colors.text.secondary} />
+                  <Text style={[z.filterBtnT, hideUnobtainable && z.filterBtnTActive]}>
+                    Unobtainable{unobtainableCount > 0 ? ` (${unobtainableCount})` : ''}
+                  </Text>
+                </Pressable>
+                <Pressable onPress={() => setHideUnmetReqs(h => !h)} style={[z.filterBtn, hideUnmetReqs && z.filterBtnActive]}>
+                  <Ionicons name={hideUnmetReqs ? 'funnel' : 'funnel-outline'} size={12} color={hideUnmetReqs ? colors.bg.primary : colors.text.secondary} />
+                  <Text style={[z.filterBtnT, hideUnmetReqs && z.filterBtnTActive]}>Reqs Not Met</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         }
         renderItem={({ item: g }) => {
@@ -105,18 +151,31 @@ export default function QuickWinsScreen() {
                 <Ionicons name={exp ? 'chevron-up' : 'chevron-down'} size={16} color={colors.text.tertiary} />
               </Pressable>
               <View style={z.ml}>
-                {shown.map(m => (
-                  <Pressable key={m.id} onPress={() => setSelected(m.id)} style={({ pressed }) => [z.mr, pressed && z.mrP]}>
+                {shown.map(m => {
+                  const hasUnmet = m.reqCheck && !m.reqCheck.met;
+                  const isUnobtainable = m.reqCheck?.unmet.some(r => r.type === 'unobtainable');
+                  return (
+                  <Pressable key={m.id} onPress={() => setSelected(m.id)} style={({ pressed }) => [z.mr, pressed && z.mrP, isUnobtainable && z.mrUnobtainable]}>
                     {m.icon_url
                       ? <Image source={{ uri: m.icon_url }} style={z.mt} />
                       : <View style={[z.mt, z.mtPh]}><Ionicons name="sparkles-outline" size={12} color={colors.gold.dim} /></View>
                     }
-                    <Text style={z.mn} numberOfLines={1}>{m.name}</Text>
+                    <View style={z.mnWrap}>
+                      <Text style={[z.mn, isUnobtainable && z.mnDim]} numberOfLines={1}>{m.name}</Text>
+                      {hasUnmet && (
+                        <Text style={z.reqTag} numberOfLines={1}>
+                          {m.reqCheck!.unmet.map(r => describeRequirement(r)).join(' · ')}
+                        </Text>
+                      )}
+                    </View>
                     {m.faction === 'alliance' && <View style={[z.fBadge, {backgroundColor:'#4A90D918'}]}><Text style={[z.fBadgeT, {color:'#4A90D9'}]}>A</Text></View>}
                     {m.faction === 'horde' && <View style={[z.fBadge, {backgroundColor:'#C41F3B18'}]}><Text style={[z.fBadgeT, {color:'#C41F3B'}]}>H</Text></View>}
-                    <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />
+                    {hasUnmet && !isUnobtainable && <Ionicons name="lock-closed" size={12} color={colors.text.tertiary} />}
+                    {isUnobtainable && <Ionicons name="ban" size={12} color={colors.fire.dim} />}
+                    {!hasUnmet && <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />}
                   </Pressable>
-                ))}
+                  );
+                })}
                 {!exp && g.mounts.length > 5 && (
                   <Pressable onPress={() => setExpanded(g.source)} style={z.more}>
                     <Text style={z.moreT}>Show all {g.mounts.length}</Text>
@@ -164,9 +223,18 @@ const z = StyleSheet.create({
   mrP:{backgroundColor:colors.bg.tertiary},
   mt:{width:28,height:28,borderRadius:radii.sm,backgroundColor:colors.bg.tertiary},
   mtPh:{alignItems:'center',justifyContent:'center'},
-  mn:{flex:1,fontSize:12,color:colors.text.primary},
+  mnWrap:{flex:1,gap:1},
+  mn:{fontSize:12,color:colors.text.primary},
+  mnDim:{color:colors.text.tertiary},
+  reqTag:{fontSize:9,color:colors.text.tertiary,fontStyle:'italic'},
+  mrUnobtainable:{opacity:0.5},
   fBadge:{width:16,height:16,borderRadius:8,alignItems:'center',justifyContent:'center'},
   fBadgeT:{fontSize:8,fontWeight:'800'},
+  filters:{flexDirection:'row',gap:spacing.sm,flexWrap:'wrap'},
+  filterBtn:{flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:spacing.md,paddingVertical:6,borderRadius:radii.full,borderWidth:1,borderColor:colors.border.default,backgroundColor:colors.bg.secondary},
+  filterBtnActive:{backgroundColor:colors.gold.primary,borderColor:colors.gold.primary},
+  filterBtnT:{fontSize:11,color:colors.text.secondary},
+  filterBtnTActive:{color:colors.bg.primary,fontWeight:'600'},
   more:{paddingVertical:spacing.sm,alignItems:'center'},
   moreT:{fontSize:11,color:colors.gold.primary,fontWeight:'600'},
   empty:{alignItems:'center',paddingVertical:80,gap:spacing.md,paddingHorizontal:spacing.xl},
