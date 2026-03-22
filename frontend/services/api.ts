@@ -115,6 +115,9 @@ class ApiService {
   async getCharacterPets(realm:string,name:string,region='us') {
     return this.request<{pets:PetSummary[];total:number}>('/collections/pets',{},{realm,name,region});
   }
+  async getPetIcons(speciesIds:number[]) {
+    return this.request<{icons:Record<string,string|null>}>('/collections/pets/icons',{},{ids:speciesIds.join(',')});
+  }
   async getCharacterToys(realm:string,name:string,region='us') {
     return this.request<{toys:ToySummary[];total:number}>('/collections/toys',{},{realm,name,region});
   }
@@ -161,7 +164,7 @@ export interface FavChar { id:number; realm_slug:string; character_name:string; 
 export interface FarmTask { id:number; title:string; description?:string; mount_id?:number; source_type?:string; zone_name?:string; reset_type:string; completed:boolean; completed_at?:string; notes?:string; sort_order:number; }
 export interface ResetInfo { daily_reset:string; weekly_reset:string; tasks_reset:number; }
 
-export interface PetSummary { id:number; name:string; level:number; quality:string; breed_id?:number; species_id:number; }
+export interface PetSummary { id:number; name:string; level:number; quality:string; breed_id?:number; species_id:number; creature_display_id?:number; icon_url?:string|null; }
 export interface ToySummary { id:number; name:string; item_id?:number; }
 export interface TitleSummary { id:number; name:string; display_string?:string; }
 export interface HeirloomSummary { id:number; name:string; upgrade_level:number; }

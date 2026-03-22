@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator, Dimensions,
+  View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator, Dimensions, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,18 +40,59 @@ export default function PetsScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [showDetails, setShowDetails] = useState(false);
+  const [iconCache, setIconCache] = useState<Record<number, string | null>>({});
+  const iconQ = useRef<Set<number>>(new Set());
+  const iconT = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchIcons = useCallback(async (ids: number[]) => {
+    try {
+      const d = await api.getPetIcons(ids);
+      setIconCache(p => { const n = { ...p }; for (const [k, v] of Object.entries(d.icons)) n[Number(k)] = v; return n; });
+    } catch (e) { console.error('Fetch pet icons:', e); }
+  }, []);
+
+  const queueIcons = useCallback((ids: number[]) => {
+    for (const id of ids) if (iconCache[id] === undefined) iconQ.current.add(id);
+    if (iconT.current || iconQ.current.size === 0) return;
+    iconT.current = setTimeout(() => {
+      const batch = Array.from(iconQ.current).slice(0, 20);
+      iconQ.current = new Set(Array.from(iconQ.current).slice(20));
+      iconT.current = null;
+      if (batch.length) fetchIcons(batch);
+    }, 250);
+  }, [iconCache, fetchIcons]);
+
+  const onView = useRef(({ viewableItems }: { viewableItems: Array<{ item: PetSummary }> }) => {
+    const ids = viewableItems.map(v => v.item.species_id).filter(Boolean);
+    if (ids.length) queueIcons(ids);
+  });
+  useEffect(() => { onView.current = ({ viewableItems }: { viewableItems: Array<{ item: PetSummary }> }) => {
+    const ids = viewableItems.map(v => v.item.species_id).filter(Boolean);
+    if (ids.length) queueIcons(ids);
+  }; }, [queueIcons]);
+  const viewCfg = useRef({ itemVisiblePercentThreshold: 10 }).current;
 
   const load = useCallback(async () => {
     if (!selectedChar) { setLoading(false); return; }
     try {
       const data = await api.getCharacterPets(selectedChar.realm_slug, selectedChar.character_name);
       setPets(data.pets);
-    } catch { setPets([]); }
+      const seed: Record<number, string | null> = {};
+      for (const p of data.pets) if (p.icon_url) seed[p.species_id] = p.icon_url;
+      setIconCache(prev => ({ ...prev, ...seed }));
+    } catch (e) { console.error('Load pets:', e); setPets([]); }
     finally { setLoading(false); }
   }, [selectedChar]);
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
   useEffect(() => { load(); }, [load]);
+  // Seed icons for initial visible pets once loaded
+  useEffect(() => {
+    if (pets.length) {
+      const ids = [...new Set(pets.slice(0, 30).map(p => p.species_id))];
+      queueIcons(ids);
+    }
+  }, [pets, queueIcons]);
 
   const filtered = useMemo(() => {
     let r = pets;
@@ -70,10 +111,15 @@ export default function PetsScreen() {
   const renderPet = useCallback(({ item }: { item: PetSummary }) => {
     const qColor = QUALITY_COLORS[item.quality] || colors.text.secondary;
     const breed = item.breed_id ? BREED_NAMES[item.breed_id] : null;
+    const iconUrl = iconCache[item.species_id];
     return (
       <View style={[z.petCard, { width: COL }]}>
         <View style={[z.petIcon, { borderColor: qColor + '60' }]}>
-          <Ionicons name="paw" size={20} color={qColor} />
+          {iconUrl ? (
+            <Image source={{ uri: iconUrl }} style={z.petImg} />
+          ) : (
+            <Ionicons name="paw" size={20} color={qColor} />
+          )}
           {showDetails && item.level > 0 && (
             <View style={z.levelBadge}><Text style={z.levelText}>{item.level}</Text></View>
           )}
@@ -87,7 +133,7 @@ export default function PetsScreen() {
         </View>
       </View>
     );
-  }, [showDetails]);
+  }, [showDetails, iconCache]);
 
   if (!selectedChar) return (
     <SafeAreaView style={z.safe} edges={['top']}>
@@ -111,6 +157,7 @@ export default function PetsScreen() {
       <FlatList
         data={filtered} renderItem={renderPet} keyExtractor={(item, i) => `${item.species_id}-${i}`}
         numColumns={3} columnWrapperStyle={z.row} contentContainerStyle={z.list}
+        onViewableItemsChanged={e => onView.current(e)} viewabilityConfig={viewCfg}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.fel.primary} progressBackgroundColor={colors.bg.secondary} />}
         ListHeaderComponent={
           <View style={z.hdr}>
@@ -184,7 +231,8 @@ const z = StyleSheet.create({
   cnt: { ...typography.caption, color: colors.text.tertiary },
   row: { gap: GAP, marginBottom: GAP },
   petCard: { backgroundColor: colors.bg.secondary, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, overflow: 'hidden' },
-  petIcon: { aspectRatio: 1, backgroundColor: colors.bg.tertiary, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1 },
+  petIcon: { aspectRatio: 1, backgroundColor: colors.bg.tertiary, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, overflow: 'hidden' },
+  petImg: { width: '100%', height: '100%' },
   levelBadge: { position: 'absolute', bottom: 2, right: 2, backgroundColor: colors.bg.primary + 'DD', borderRadius: radii.sm, paddingHorizontal: 4, paddingVertical: 1 },
   levelText: { fontSize: 9, fontWeight: '800', color: colors.gold.primary },
   petInfo: { padding: spacing.sm, gap: 2, height: 52 },

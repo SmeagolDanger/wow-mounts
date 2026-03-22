@@ -82,8 +82,12 @@ class BlizzardAPI:
         return await self._game_data_request(f"/data/wow/mount/{mount_id}")
 
     async def get_creature_media(self, creature_display_id: int) -> dict:
-        """Fetch creature display media (mount icons/renders)."""
+        """Fetch creature display media (mount/pet icons/renders)."""
         return await self._game_data_request(f"/data/wow/media/creature-display/{creature_display_id}")
+
+    async def get_pet_species_media(self, species_id: int) -> dict:
+        """Fetch pet species media (icon image)."""
+        return await self._game_data_request(f"/data/wow/media/pet/{species_id}")
 
     # ── Character Data ───────────────────────────────────────────────
     async def get_character_profile(self, realm_slug: str, character_name: str) -> dict:

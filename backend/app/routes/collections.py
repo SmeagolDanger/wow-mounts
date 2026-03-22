@@ -79,14 +79,23 @@ async def get_character_pets(
     for pet in data.get("pets", []):
         species = pet.get("species", {})
         stats = pet.get("stats", {})
+        creature_display = pet.get("creature_display", {})
+        species_id = species.get("id")
+        # Blizzard renders pet icons at a predictable media URL via creature_display
+        icon_url = None
+        if creature_display.get("id"):
+            # Will be resolved client-side or via a batch endpoint if needed
+            pass
         pets.append(
             {
-                "id": species.get("id"),
+                "id": species_id,
                 "name": species.get("name"),
                 "level": pet.get("level", 1),
                 "quality": pet.get("quality", {}).get("type", "COMMON"),
                 "breed_id": stats.get("breed_id"),
-                "species_id": species.get("id"),
+                "species_id": species_id,
+                "creature_display_id": creature_display.get("id"),
+                "icon_url": icon_url,
             }
         )
 
@@ -547,3 +556,37 @@ async def get_all_titles(token: str = Depends(_extract_token)):
 
     titles = await _get_cached_index("titles", fetch)
     return {"titles": titles, "total": len(titles)}
+
+
+# ── In-memory icon cache for pets ─────────────────────────────────────
+_PET_ICON_CACHE: dict[int, str | None] = {}
+
+
+@router.get("/pets/icons")
+async def get_pet_icons(
+    ids: str = Query(..., description="Comma-separated species IDs (max 20)"),
+    token: str = Depends(_extract_token),
+):
+    """Batch-fetch pet species icons. Returns a map of species_id → icon_url."""
+    import asyncio
+
+    species_ids = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()][:20]
+    icons: dict[str, str | None] = {}
+
+    async def fetch_one(sid: int):
+        # Check cache first
+        if sid in _PET_ICON_CACHE:
+            icons[str(sid)] = _PET_ICON_CACHE[sid]
+            return
+        try:
+            media = await blizzard_api.get_pet_species_media(sid)
+            assets = media.get("assets", [])
+            url = next((a["value"] for a in assets if a.get("key") == "icon"), None)
+            _PET_ICON_CACHE[sid] = url
+            icons[str(sid)] = url
+        except Exception:
+            _PET_ICON_CACHE[sid] = None
+            icons[str(sid)] = None
+
+    await asyncio.gather(*(fetch_one(sid) for sid in species_ids))
+    return {"icons": icons}
