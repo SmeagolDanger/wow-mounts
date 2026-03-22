@@ -12,6 +12,7 @@
 services:
   api:
     image: ghcr.io/${GHCR_OWNER:-your-github-user}/wow-mount-tracker-api:${IMAGE_TAG:-latest}
+    build: ./backend
     ports:
       - "127.0.0.1:81:8000"
     environment:
