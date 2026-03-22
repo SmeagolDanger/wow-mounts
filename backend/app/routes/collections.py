@@ -343,18 +343,22 @@ async def get_character_professions(
             for recipe in tier.get("known_recipes", []):
                 recipes.append({"id": recipe.get("id"), "name": recipe.get("name")})
             total_known += len(recipes)
-            tiers.append({
-                "tier_name": tier.get("tier", {}).get("name", "Unknown"),
-                "skill_points": tier.get("skill_points", 0),
-                "max_skill_points": tier.get("max_skill_points", 0),
-                "known_recipes": recipes,
-            })
-        primaries.append({
-            "id": profession.get("id"),
-            "name": profession.get("name"),
-            "tiers": tiers,
-            "total_known": total_known,
-        })
+            tiers.append(
+                {
+                    "tier_name": tier.get("tier", {}).get("name", "Unknown"),
+                    "skill_points": tier.get("skill_points", 0),
+                    "max_skill_points": tier.get("max_skill_points", 0),
+                    "known_recipes": recipes,
+                }
+            )
+        primaries.append(
+            {
+                "id": profession.get("id"),
+                "name": profession.get("name"),
+                "tiers": tiers,
+                "total_known": total_known,
+            }
+        )
 
     for prof in data.get("secondaries", []):
         profession = prof.get("profession", {})
@@ -365,18 +369,22 @@ async def get_character_professions(
             for recipe in tier.get("known_recipes", []):
                 recipes.append({"id": recipe.get("id"), "name": recipe.get("name")})
             total_known += len(recipes)
-            tiers.append({
-                "tier_name": tier.get("tier", {}).get("name", "Unknown"),
-                "skill_points": tier.get("skill_points", 0),
-                "max_skill_points": tier.get("max_skill_points", 0),
-                "known_recipes": recipes,
-            })
-        secondaries.append({
-            "id": profession.get("id"),
-            "name": profession.get("name"),
-            "tiers": tiers,
-            "total_known": total_known,
-        })
+            tiers.append(
+                {
+                    "tier_name": tier.get("tier", {}).get("name", "Unknown"),
+                    "skill_points": tier.get("skill_points", 0),
+                    "max_skill_points": tier.get("max_skill_points", 0),
+                    "known_recipes": recipes,
+                }
+            )
+        secondaries.append(
+            {
+                "id": profession.get("id"),
+                "name": profession.get("name"),
+                "tiers": tiers,
+                "total_known": total_known,
+            }
+        )
 
     total_recipes = sum(p["total_known"] for p in primaries) + sum(p["total_known"] for p in secondaries)
     return {"primaries": primaries, "secondaries": secondaries, "total_recipes": total_recipes}
