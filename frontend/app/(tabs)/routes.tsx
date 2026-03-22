@@ -293,7 +293,7 @@ export default function PlannerScreen() {
 
 const z = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.primary },
-  list: { paddingBottom: 100 },
+  list: { paddingBottom: 120 },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm, gap: spacing.md },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { ...typography.display, color: colors.frost.primary },

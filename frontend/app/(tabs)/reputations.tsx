@@ -156,7 +156,7 @@ const z = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.primary },
   loadC: { flex: 1, backgroundColor: colors.bg.primary, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   loadT: { ...typography.body, color: colors.text.secondary },
-  list: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
   hdr: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
   title: { ...typography.display, color: colors.frost.primary },
   summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xl, paddingVertical: spacing.md, backgroundColor: colors.bg.secondary, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default },

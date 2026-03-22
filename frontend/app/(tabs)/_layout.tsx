@@ -1,7 +1,16 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet } from 'react-native';
-import { colors } from '../../theme';
+import { StyleSheet, View, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { colors, radii, spacing } from '../../theme';
+
+function TabBarBackground() {
+  return Platform.OS === 'ios' ? (
+    <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+  ) : (
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.bg.glass }]} />
+  );
+}
 
 export default function TabLayout() {
   return (
@@ -11,6 +20,8 @@ export default function TabLayout() {
       tabBarActiveTintColor: colors.gold.primary,
       tabBarInactiveTintColor: colors.text.tertiary,
       tabBarLabelStyle: z.label,
+      tabBarBackground: () => <TabBarBackground />,
+      tabBarItemStyle: z.item,
     }}>
       <Tabs.Screen name="index" options={{ title: 'Collection', tabBarIcon: ({ color, size }) => <Ionicons name="trophy" size={size} color={color} /> }} />
       <Tabs.Screen name="routes" options={{ title: 'Planner', tabBarIcon: ({ color, size }) => <Ionicons name="map" size={size} color={color} /> }} />
@@ -33,6 +44,25 @@ export default function TabLayout() {
 }
 
 const z = StyleSheet.create({
-  bar: { backgroundColor: colors.bg.secondary, borderTopColor: colors.border.default, borderTopWidth: 1, height: 88, paddingTop: 8, paddingBottom: 28, elevation: 0, shadowOpacity: 0 },
-  label: { fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
+  bar: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    height: 64,
+    borderRadius: radii.xxl,
+    borderTopWidth: 0,
+    borderWidth: 1,
+    borderColor: colors.border.glass,
+    backgroundColor: 'transparent',
+    elevation: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    overflow: 'hidden',
+    paddingBottom: 0,
+  },
+  label: { fontSize: 9, fontWeight: '600', letterSpacing: 0.3, marginBottom: 6 },
+  item: { paddingTop: 6 },
 });

@@ -42,7 +42,12 @@
       "Bash(python -m py_compile app/services/blizzard.py)",
       "Bash(python -m py_compile app/routes/collections.py)",
       "Bash(find 'c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts\\\\frontend\\\\src' -type f -name *.ts -o -name *.tsx)",
-      "Bash(node -e \"const path = require\\(''path''\\); console.log\\(path.resolve\\(''app/\\(tabs\\)'', ''../../data/collectionRequirements''\\)\\)\")"
+      "Bash(node -e \"const path = require\\(''path''\\); console.log\\(path.resolve\\(''app/\\(tabs\\)'', ''../../data/collectionRequirements''\\)\\)\")",
+      "Bash(find 'c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts' -type f -name theme*)",
+      "Bash(ls -la \"c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts/frontend/app/\\(tabs\\)\")",
+      "Bash(head -50 \"c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts/frontend/app/\\(tabs\\)/achievements.tsx\")",
+      "Bash(head -50 \"c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts/frontend/app/\\(tabs\\)/routes.tsx\")",
+      "Bash(npx expo:*)"
     ]
   }
 }

@@ -249,7 +249,7 @@ export default function FarmScreen() {
 
 const z = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.primary },
-  list: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
   header: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { ...typography.display, color: colors.arcane.light },

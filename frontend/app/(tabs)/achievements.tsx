@@ -190,7 +190,7 @@ const z = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.primary },
   loadC: { flex: 1, backgroundColor: colors.bg.primary, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   loadT: { ...typography.body, color: colors.text.secondary },
-  list: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
   hdr: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
   back: { width: 32, height: 32, borderRadius: radii.full, backgroundColor: colors.bg.secondary, alignItems: 'center', justifyContent: 'center' },
   title: { ...typography.display, color: colors.gold.bright },

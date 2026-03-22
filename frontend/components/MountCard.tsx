@@ -13,41 +13,39 @@ export default function MountCard({name,iconUrl,sourceType,collected,faction,onP
   useEffect(() => {
     if (!iconUrl) {
       const a = Animated.loop(Animated.sequence([
-        Animated.timing(shimmer,{toValue:1,duration:1600,useNativeDriver:true}),
-        Animated.timing(shimmer,{toValue:0,duration:1600,useNativeDriver:true}),
+        Animated.timing(shimmer,{toValue:1,duration:1800,useNativeDriver:true}),
+        Animated.timing(shimmer,{toValue:0,duration:1800,useNativeDriver:true}),
       ]));
       a.start();
       return () => a.stop();
     }
   }, [iconUrl]);
 
-  const op = shimmer.interpolate({inputRange:[0,1],outputRange:[0.08,0.25]});
+  const op = shimmer.interpolate({inputRange:[0,1],outputRange:[0.06,0.2]});
   const sc = sourceType ? (colors.source[sourceType]||colors.text.tertiary) : null;
   const fc = faction ? FACTION_COLOR[faction] : null;
 
   return (
     <Pressable onPress={onPress} style={({pressed})=>[s.wrap,collected&&s.collected,pressed&&s.pressed]}>
-      {/* Square image area */}
       <View style={s.imgWrap}>
         {iconUrl
           ? <Image source={{uri:iconUrl}} style={s.img} resizeMode="cover"/>
-          : <Animated.View style={[s.ph,{opacity:op}]}><Ionicons name="sparkles-outline" size={20} color={colors.gold.dim}/></Animated.View>
+          : <Animated.View style={[s.ph,{opacity:op}]}><Ionicons name="sparkles-outline" size={18} color={colors.gold.dim}/></Animated.View>
         }
         {collected && (
-          <View style={s.check}><Ionicons name="checkmark-circle" size={15} color={colors.fel.bright}/></View>
+          <View style={s.check}><Ionicons name="checkmark-circle" size={14} color={colors.fel.bright}/></View>
         )}
         {sc && <View style={[s.srcDot,{backgroundColor:sc}]}/>}
         {fc && (
-          <View style={[s.factionBadge,{backgroundColor:fc+'22',borderColor:fc+'55'}]}>
+          <View style={[s.factionBadge,{backgroundColor:fc+'18',borderColor:fc+'44'}]}>
             <Text style={[s.factionT,{color:fc}]}>{faction==='alliance'?'A':'H'}</Text>
           </View>
         )}
       </View>
-      {/* Fixed-height info area so all cards are equal */}
       <View style={s.info}>
         <Text style={s.name} numberOfLines={2}>{name}</Text>
         {sourceType && sc ? (
-          <View style={[s.badge,{backgroundColor:sc+'20',borderColor:sc+'40'}]}>
+          <View style={[s.badge,{backgroundColor:sc+'14',borderColor:sc+'30'}]}>
             <Text style={[s.badgeT,{color:sc}]}>{src[sourceType]||sourceType}</Text>
           </View>
         ) : <View style={s.badgeSpacer}/>}
@@ -57,7 +55,7 @@ export default function MountCard({name,iconUrl,sourceType,collected,faction,onP
   );
 }
 
-const INFO_H = 58; // fixed info section height — enough for 2 name lines + badge
+const INFO_H = 56;
 
 const s = StyleSheet.create({
   wrap:{
@@ -66,21 +64,21 @@ const s = StyleSheet.create({
     borderWidth:1,
     borderColor:colors.border.default,
     overflow:'hidden',
-    ...shadows.card,
+    ...shadows.soft,
   },
-  collected:{borderColor:colors.fel.dim+'CC'},
-  pressed:{opacity:0.8,transform:[{scale:0.95}]},
+  collected:{borderColor:colors.fel.dim+'88'},
+  pressed:{opacity:0.88,transform:[{scale:0.97}]},
   imgWrap:{aspectRatio:1,backgroundColor:colors.bg.tertiary},
   img:{width:'100%',height:'100%'},
   ph:{width:'100%',height:'100%',alignItems:'center',justifyContent:'center'},
-  check:{position:'absolute',top:3,right:3,backgroundColor:colors.bg.primary+'CC',borderRadius:radii.full,padding:1},
-  srcDot:{position:'absolute',bottom:4,right:4,width:6,height:6,borderRadius:3,opacity:0.9},
+  check:{position:'absolute',top:3,right:3,backgroundColor:colors.bg.primary+'DD',borderRadius:radii.full,padding:1},
+  srcDot:{position:'absolute',bottom:4,right:4,width:5,height:5,borderRadius:3,opacity:0.85},
   factionBadge:{position:'absolute',top:4,left:4,width:18,height:18,borderRadius:9,borderWidth:1,alignItems:'center',justifyContent:'center'},
-  factionT:{fontSize:9,fontWeight:'900',lineHeight:18},
+  factionT:{fontSize:8,fontWeight:'900',lineHeight:18},
   info:{height:INFO_H,padding:spacing.sm,gap:2,justifyContent:'space-between'},
-  name:{fontSize:11,fontWeight:'600',color:colors.text.primary,lineHeight:14,flex:1},
-  badge:{alignSelf:'flex-start',paddingHorizontal:5,paddingVertical:2,borderRadius:radii.sm,borderWidth:1},
-  badgeT:{fontSize:9,fontWeight:'700',letterSpacing:0.4,textTransform:'uppercase'},
-  badgeSpacer:{height:17},
-  dim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(7,8,15,0.45)'},
+  name:{fontSize:10.5,fontWeight:'600',color:colors.text.primary,lineHeight:14,flex:1},
+  badge:{alignSelf:'flex-start',paddingHorizontal:5,paddingVertical:1.5,borderRadius:radii.full,borderWidth:1},
+  badgeT:{fontSize:8,fontWeight:'700',letterSpacing:0.5,textTransform:'uppercase'},
+  badgeSpacer:{height:16},
+  dim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(6,7,13,0.5)'},
 });

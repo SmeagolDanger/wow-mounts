@@ -115,7 +115,7 @@ export default function MissingToysScreen() {
 
 const z = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.primary },
-  list: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
   hdr: { paddingTop: spacing.md, paddingBottom: spacing.lg, gap: spacing.sm },
   back: { width: 32, height: 32, borderRadius: radii.full, backgroundColor: colors.bg.secondary, alignItems: 'center', justifyContent: 'center' },
   title: { ...typography.display, color: colors.frost.primary },

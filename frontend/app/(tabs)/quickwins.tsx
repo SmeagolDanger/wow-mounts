@@ -234,7 +234,7 @@ export default function QuickWinsScreen() {
 
 const z = StyleSheet.create({
   safe:{flex:1,backgroundColor:colors.bg.primary},
-  list:{paddingHorizontal:spacing.lg,paddingBottom:100},
+  list:{paddingHorizontal:spacing.lg,paddingBottom:120},
   hdr:{paddingTop:spacing.md,paddingBottom:spacing.lg,gap:spacing.sm},
   title:{...typography.display,color:colors.gold.bright},
   sub:{...typography.caption,color:colors.text.secondary},

@@ -385,7 +385,7 @@ const z = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.primary },
   loadC: { flex: 1, backgroundColor: colors.bg.primary, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   loadT: { ...typography.body, color: colors.text.secondary },
-  list: { paddingHorizontal: PAD, paddingBottom: 100 },
+  list: { paddingHorizontal: PAD, paddingBottom: 120 },
   hdr: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { ...typography.display, color: colors.gold.primary },

@@ -1,16 +1,18 @@
 /**
  * Theme — WoW UI inspired: deep navy backgrounds, burnished gold chrome,
- * class/rarity color systems. Brighter and more modern than pitch-black.
+ * class/rarity color systems. Modern glassmorphism + depth.
  */
 
 export const colors = {
   bg: {
-    primary: '#07080F',
-    secondary: '#0D1220',
-    tertiary: '#152030',
-    elevated: '#1C2B40',
-    input: '#0B101C',
-    modal: 'rgba(5,7,14,0.93)',
+    primary: '#06070D',
+    secondary: '#0C1018',
+    tertiary: '#131A28',
+    elevated: '#1A2538',
+    input: '#0A0E18',
+    modal: 'rgba(4,5,10,0.95)',
+    glass: 'rgba(14,18,32,0.72)',
+    glassLight: 'rgba(22,30,52,0.55)',
   },
   gold: {
     primary: '#F5B800',
@@ -42,17 +44,18 @@ export const colors = {
     muted: '#082030',
   },
   text: {
-    primary: '#EEECf8',
+    primary: '#F0EEF8',
     secondary: '#8E9CC2',
     tertiary: '#4E5A7A',
     gold: '#F5B800',
-    inverse: '#07080F',
+    inverse: '#06070D',
   },
   border: {
-    default: '#1E2D46',
-    subtle: '#162338',
+    default: '#1A2640',
+    subtle: '#141E34',
     gold: 'rgba(245,184,0,0.32)',
     glow: 'rgba(245,184,0,0.10)',
+    glass: 'rgba(255,255,255,0.06)',
   },
   rarity: {
     poor: '#9D9D9D', common: '#FFFFFF', uncommon: '#1EFF00',
@@ -73,10 +76,10 @@ export const colors = {
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28, xxxl: 40 };
-export const radii = { sm: 6, md: 10, lg: 14, xl: 20, full: 9999 };
+export const radii = { sm: 6, md: 10, lg: 14, xl: 20, xxl: 24, full: 9999 };
 
 export const typography = {
-  display: { fontSize: 26, fontWeight: '700' as const, letterSpacing: -0.3, color: colors.text.primary },
+  display: { fontSize: 28, fontWeight: '700' as const, letterSpacing: -0.5, color: colors.text.primary },
   heading: { fontSize: 18, fontWeight: '600' as const, letterSpacing: -0.2, color: colors.text.primary },
   subheading: { fontSize: 15, fontWeight: '600' as const, color: colors.text.primary },
   body: { fontSize: 14, fontWeight: '400' as const, lineHeight: 21, color: colors.text.primary },
@@ -85,8 +88,9 @@ export const typography = {
 };
 
 export const shadows = {
-  card: { shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14, elevation: 6 },
-  glow: (c: string) => ({ shadowColor: c, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 18, elevation: 10 }),
+  card: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 5 },
+  soft: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 3 },
+  glow: (c: string) => ({ shadowColor: c, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 10 }),
 };
 
 export default { colors, spacing, radii, typography, shadows };

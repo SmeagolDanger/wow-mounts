@@ -5,7 +5,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography, radii } from '../../theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, spacing, typography, radii, shadows } from '../../theme';
 import { Card } from '../../components';
 import { useApp } from '../../contexts/AppContext';
 
@@ -45,7 +46,6 @@ export default function StatsScreen() {
     setRefreshing(false);
   }, [refreshCollections]);
 
-  // Use collectionSummary (from backend) as primary source, individual state as fallback
   const s = collectionSummary?.summary;
   const stats: StatRow[] = [
     { key: 'mounts', label: 'Mounts', icon: 'trophy', count: collectedIds.size || s?.mounts?.count || 0, color: colors.gold.primary },
@@ -59,6 +59,7 @@ export default function StatsScreen() {
   ];
 
   const totalCollected = stats.reduce((s, r) => s + r.count, 0);
+  const maxStat = Math.max(...stats.map(s => s.count), 1);
 
   return (
     <SafeAreaView style={z.safe} edges={['top']}>
@@ -70,7 +71,9 @@ export default function StatsScreen() {
 
         {!selectedChar ? (
           <View style={z.empty}>
-            <Ionicons name="stats-chart-outline" size={48} color={colors.text.tertiary} />
+            <View style={z.emptyIcon}>
+              <Ionicons name="stats-chart-outline" size={32} color={colors.text.tertiary} />
+            </View>
             <Text style={z.emptyTitle}>Select a Character</Text>
             <Text style={z.emptySub}>
               Choose a character from the Collection tab to see your progress across all categories.
@@ -82,7 +85,7 @@ export default function StatsScreen() {
             <Card variant="gold" style={z.heroCard}>
               <View style={z.heroRow}>
                 <View style={z.heroIcon}>
-                  <Ionicons name="person" size={24} color={colors.gold.primary} />
+                  <Ionicons name="person" size={22} color={colors.gold.primary} />
                 </View>
                 <View style={z.heroInfo}>
                   <Text style={z.heroName}>{selectedChar.display.split('-')[0].toUpperCase()}</Text>
@@ -90,12 +93,12 @@ export default function StatsScreen() {
                 </View>
                 <View style={z.heroTotal}>
                   <Text style={z.heroTotalNum}>{totalCollected.toLocaleString()}</Text>
-                  <Text style={z.heroTotalLabel}>TOTAL ITEMS</Text>
+                  <Text style={z.heroTotalLabel}>TOTAL</Text>
                 </View>
               </View>
               {achievementPoints > 0 && (
                 <View style={z.pointsRow}>
-                  <Ionicons name="star" size={14} color={colors.gold.bright} />
+                  <Ionicons name="star" size={13} color={colors.gold.bright} />
                   <Text style={z.pointsText}>{achievementPoints.toLocaleString()} Achievement Points</Text>
                 </View>
               )}
@@ -104,62 +107,50 @@ export default function StatsScreen() {
             {loadingCollected && (
               <View style={z.loadingRow}>
                 <ActivityIndicator size="small" color={colors.gold.primary} />
-                <Text style={z.loadingText}>Loading collections...</Text>
+                <Text style={z.loadingText}>Syncing collections...</Text>
               </View>
             )}
 
-            {/* Collection cards */}
-            <View style={z.grid}>
-              {stats.map(stat => {
+            {/* Collection list — modern rows with progress bars */}
+            <View style={z.collectionList}>
+              {stats.map((stat, idx) => {
                 const route = STAT_ROUTES[stat.key];
-                const inner = (
-                  <Card variant="default">
-                    <View style={z.statInner}>
-                      <View style={[z.statIcon, { backgroundColor: stat.color + '18' }]}>
-                        <Ionicons name={stat.icon} size={20} color={stat.color} />
+                const barWidth = Math.max((stat.count / maxStat) * 100, 2);
+                const content = (
+                  <View key={stat.key} style={[z.collRow, idx === 0 && z.collRowFirst, idx === stats.length - 1 && z.collRowLast]}>
+                    <View style={[z.collIcon, { backgroundColor: stat.color + '15' }]}>
+                      <Ionicons name={stat.icon} size={18} color={stat.color} />
+                    </View>
+                    <View style={z.collInfo}>
+                      <View style={z.collTop}>
+                        <Text style={z.collLabel}>{stat.label}</Text>
+                        <Text style={[z.collCount, { color: stat.color }]}>{stat.count.toLocaleString()}</Text>
                       </View>
-                      <Text style={z.statCount}>{stat.count.toLocaleString()}</Text>
-                      <Text style={z.statLabel}>{stat.label}</Text>
+                      <View style={z.barBg}>
+                        <LinearGradient
+                          colors={[stat.color + '60', stat.color]}
+                          start={{x:0,y:0}} end={{x:1,y:0}}
+                          style={[z.barFill, { width: `${barWidth}%` }]}
+                        />
+                      </View>
                       {stat.points !== undefined && stat.points > 0 && (
-                        <Text style={z.statPoints}>{stat.points.toLocaleString()} pts</Text>
-                      )}
-                      {route && (
-                        <View style={z.chevron}>
-                          <Ionicons name="chevron-forward" size={12} color={colors.text.tertiary} />
-                        </View>
+                        <Text style={z.collPts}>{stat.points.toLocaleString()} pts</Text>
                       )}
                     </View>
-                  </Card>
+                    {route && (
+                      <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} style={{ marginLeft: spacing.sm }} />
+                    )}
+                  </View>
                 );
                 return route ? (
-                  <Pressable key={stat.key} style={z.statCard} onPress={() => router.push(route as any)}>
-                    {inner}
+                  <Pressable key={stat.key} onPress={() => router.push(route as any)} style={({pressed}) => [pressed && { opacity: 0.7 }]}>
+                    {content}
                   </Pressable>
                 ) : (
-                  <View key={stat.key} style={z.statCard}>{inner}</View>
+                  <View key={stat.key}>{content}</View>
                 );
               })}
             </View>
-
-            {/* Breakdown list */}
-            {collectionSummary && (
-              <View style={z.section}>
-                <Text style={z.sectionTitle}>Collection Breakdown</Text>
-                <View style={z.breakdownCard}>
-                  {Object.entries(collectionSummary.summary).map(([key, val], idx, arr) => {
-                    const stat = stats.find(s => s.key === key);
-                    const barColor = stat?.color || colors.text.tertiary;
-                    return (
-                      <View key={key} style={[z.breakdownRow, idx === arr.length - 1 && { borderBottomWidth: 0 }]}>
-                        <Ionicons name={(stat?.icon || 'ellipse') as any} size={14} color={barColor} />
-                        <Text style={z.breakdownText}>{stat?.label || key}</Text>
-                        <Text style={[z.breakdownCount, { color: barColor }]}>{val.count.toLocaleString()}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
           </>
         )}
       </ScrollView>
@@ -169,36 +160,35 @@ export default function StatsScreen() {
 
 const z = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.primary },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 100, gap: spacing.lg },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 120, gap: spacing.lg },
   title: { ...typography.display, color: colors.gold.bright },
   empty: { alignItems: 'center', paddingVertical: 80, gap: spacing.md, paddingHorizontal: spacing.xl },
+  emptyIcon: { width: 64, height: 64, borderRadius: radii.full, backgroundColor: colors.bg.tertiary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm },
   emptyTitle: { ...typography.heading, color: colors.text.secondary },
   emptySub: { ...typography.caption, color: colors.text.tertiary, textAlign: 'center', lineHeight: 18 },
   heroCard: { padding: spacing.lg },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  heroIcon: { width: 48, height: 48, borderRadius: radii.md, backgroundColor: colors.gold.muted, alignItems: 'center', justifyContent: 'center' },
+  heroIcon: { width: 44, height: 44, borderRadius: radii.full, backgroundColor: colors.gold.muted, alignItems: 'center', justifyContent: 'center' },
   heroInfo: { flex: 1, gap: 2 },
   heroName: { ...typography.heading, color: colors.gold.primary, letterSpacing: 1 },
   heroRealm: { ...typography.caption, color: colors.text.tertiary, textTransform: 'capitalize' },
   heroTotal: { alignItems: 'flex-end', gap: 2 },
-  heroTotalNum: { fontSize: 22, fontWeight: '700', color: colors.text.primary },
-  heroTotalLabel: { ...typography.label, fontSize: 8 },
+  heroTotalNum: { fontSize: 24, fontWeight: '700', color: colors.text.primary, letterSpacing: -0.5 },
+  heroTotalLabel: { ...typography.label, fontSize: 9 },
   pointsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border.default },
   pointsText: { ...typography.caption, color: colors.gold.bright, fontWeight: '600' },
   loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   loadingText: { ...typography.caption, color: colors.text.tertiary },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  statCard: { width: '48.5%', height: 140 },
-  statInner: { alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.md, flex: 1 },
-  statIcon: { width: 40, height: 40, borderRadius: radii.full, alignItems: 'center', justifyContent: 'center' },
-  statCount: { fontSize: 22, fontWeight: '700', color: colors.text.primary },
-  statLabel: { ...typography.label, fontSize: 10 },
-  statPoints: { fontSize: 10, fontWeight: '600', color: colors.gold.dim },
-  chevron: { position: 'absolute', top: 8, right: 8, opacity: 0.5 },
-  section: { gap: spacing.sm },
-  sectionTitle: { ...typography.heading },
-  breakdownCard: { backgroundColor: colors.bg.secondary, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, overflow: 'hidden' },
-  breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border.default },
-  breakdownText: { ...typography.body, fontSize: 14, flex: 1 },
-  breakdownCount: { fontSize: 15, fontWeight: '700' },
+  collectionList: { backgroundColor: colors.bg.secondary, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border.default, overflow: 'hidden', ...shadows.soft },
+  collRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border.subtle },
+  collRowFirst: { borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg },
+  collRowLast: { borderBottomWidth: 0, borderBottomLeftRadius: radii.lg, borderBottomRightRadius: radii.lg },
+  collIcon: { width: 36, height: 36, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', marginRight: spacing.md },
+  collInfo: { flex: 1, gap: 4 },
+  collTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  collLabel: { fontSize: 14, fontWeight: '600', color: colors.text.primary },
+  collCount: { fontSize: 16, fontWeight: '700' },
+  barBg: { height: 3, backgroundColor: colors.bg.tertiary, borderRadius: 2, overflow: 'hidden' },
+  barFill: { height: 3, borderRadius: 2 },
+  collPts: { fontSize: 10, fontWeight: '500', color: colors.gold.dim },
 });

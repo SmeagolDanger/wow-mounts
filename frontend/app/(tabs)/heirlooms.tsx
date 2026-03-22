@@ -166,7 +166,7 @@ const z = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.primary },
   loadC: { flex: 1, backgroundColor: colors.bg.primary, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   loadT: { ...typography.body, color: colors.text.secondary },
-  list: { paddingHorizontal: PAD, paddingBottom: 100 },
+  list: { paddingHorizontal: PAD, paddingBottom: 120 },
   hdr: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
   back: { width: 32, height: 32, borderRadius: radii.full, backgroundColor: colors.bg.secondary, alignItems: 'center', justifyContent: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
