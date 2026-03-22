@@ -118,6 +118,9 @@ class ApiService {
   async getPetIcons(speciesIds:number[]) {
     return this.request<{icons:Record<string,{icon:string|null;zoom:string|null}>}>('/collections/pets/icons',{},{ids:speciesIds.join(',')});
   }
+  async getPetDetail(speciesId:number) {
+    return this.request<PetDetail>(`/collections/pets/${speciesId}`);
+  }
   async getCharacterToys(realm:string,name:string,region='us') {
     return this.request<{toys:ToySummary[];total:number}>('/collections/toys',{},{realm,name,region});
   }
@@ -196,6 +199,19 @@ export interface ProfessionEntry { id:number; name:string; tiers:ProfessionTier[
 export interface ProfessionData { primaries:ProfessionEntry[]; secondaries:ProfessionEntry[]; total_recipes:number; }
 export interface TransmogSet { id:number; name:string; }
 export interface TransmogData { appearance_count:number; set_count:number; sets:TransmogSet[]; }
+export interface PetAbility {
+  id:number; name:string; slot:number; required_level:number;
+  rounds:number; cooldown:number; description?:string;
+  pet_type?:{id:number;type:string;name:string}|null;
+}
+export interface PetDetail {
+  id:number; name:string; description?:string;
+  battle_pet_type:{id:number;type:string;name:string};
+  abilities:PetAbility[];
+  source:{type?:string;name?:string};
+  is_capturable:boolean; is_tradable:boolean; is_battlepet:boolean;
+  icon_url?:string|null; zoom_url?:string|null;
+}
 export interface GameItem { id:number; name:string; }
 
 export const api = new ApiService();

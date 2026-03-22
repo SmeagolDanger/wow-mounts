@@ -558,6 +558,115 @@ async def get_all_titles(token: str = Depends(_extract_token)):
     return {"titles": titles, "total": len(titles)}
 
 
+# ── Pet Detail ───────────────────────────────────────────────────────
+
+# In-memory cache for pet details (species data doesn't change often)
+_PET_DETAIL_CACHE: dict[int, dict] = {}
+
+
+@router.get("/pets/{species_id}")
+async def get_pet_detail(
+    species_id: int,
+    token: str = Depends(_extract_token),
+):
+    """Get detailed info for a pet species: type, abilities, source, description."""
+    if species_id in _PET_DETAIL_CACHE:
+        return _PET_DETAIL_CACHE[species_id]
+
+    try:
+        data = await blizzard_api.get_pet_detail(species_id)
+    except Exception as e:
+        logger.debug("Pet detail unavailable for species %d: %s", species_id, e)
+        raise HTTPException(404, "Pet not found") from e
+
+    import asyncio
+
+    # Extract abilities with full details (description, cooldown, rounds, type)
+    raw_abilities = data.get("abilities", [])
+    ability_details = {}
+    try:
+
+        async def fetch_ability(ab_id: int):
+            try:
+                return await blizzard_api.get_pet_ability(ab_id)
+            except Exception:
+                return None
+
+        ab_ids = [ab.get("ability", {}).get("id") for ab in raw_abilities if ab.get("ability", {}).get("id")]
+        results = await asyncio.gather(*(fetch_ability(aid) for aid in ab_ids))
+        for aid, detail in zip(ab_ids, results):
+            if detail:
+                ability_details[aid] = detail
+    except Exception:
+        pass
+
+    abilities = []
+    for ab in raw_abilities:
+        ability = ab.get("ability", {})
+        aid = ability.get("id")
+        detail = ability_details.get(aid, {})
+        ab_type = detail.get("battle_pet_type", {})
+        abilities.append(
+            {
+                "id": aid,
+                "name": ability.get("name"),
+                "slot": ab.get("slot", 0),
+                "required_level": ab.get("required_level", 1),
+                "rounds": detail.get("rounds", 1),
+                "cooldown": detail.get("cooldown", 0),
+                "description": detail.get("description"),
+                "pet_type": {
+                    "id": ab_type.get("id"),
+                    "type": ab_type.get("type"),
+                    "name": ab_type.get("name"),
+                }
+                if ab_type
+                else None,
+            }
+        )
+
+    # Extract pet type
+    pet_type = data.get("battle_pet_type", {})
+
+    # Extract source
+    source = data.get("source", {})
+
+    # Get media (icon/zoom)
+    icon_url = None
+    zoom_url = None
+    try:
+        media = await blizzard_api.get_pet_species_media(species_id)
+        assets = media.get("assets", [])
+        icon_url = next((a["value"] for a in assets if a.get("key") == "icon"), None)
+        zoom_url = next((a["value"] for a in assets if a.get("key") == "zoom"), None)
+    except Exception:
+        pass
+
+    result = {
+        "id": species_id,
+        "name": data.get("name"),
+        "description": data.get("description"),
+        "battle_pet_type": {
+            "id": pet_type.get("id"),
+            "type": pet_type.get("type"),
+            "name": pet_type.get("name"),
+        },
+        "abilities": abilities,
+        "source": {
+            "type": source.get("type"),
+            "name": source.get("name"),
+        },
+        "is_capturable": data.get("is_capturable", False),
+        "is_tradable": data.get("is_tradable", False),
+        "is_battlepet": data.get("is_battlepet", False),
+        "icon_url": icon_url,
+        "zoom_url": zoom_url,
+    }
+
+    _PET_DETAIL_CACHE[species_id] = result
+    return result
+
+
 # ── In-memory icon cache for pets ─────────────────────────────────────
 # Maps species_id → {"icon": url, "zoom": url}
 _PET_MEDIA_CACHE: dict[int, dict[str, str | None]] = {}

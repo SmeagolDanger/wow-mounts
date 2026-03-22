@@ -47,7 +47,8 @@
       "Bash(ls -la \"c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts/frontend/app/\\(tabs\\)\")",
       "Bash(head -50 \"c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts/frontend/app/\\(tabs\\)/achievements.tsx\")",
       "Bash(head -50 \"c:\\\\Users\\\\Mike Kennedy\\\\Documents\\\\GitHub\\\\wow-mounts/frontend/app/\\(tabs\\)/routes.tsx\")",
-      "Bash(npx expo:*)"
+      "Bash(npx expo:*)",
+      "Bash(npm ls:*)"
     ]
   }
 }

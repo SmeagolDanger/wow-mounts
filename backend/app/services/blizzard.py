@@ -120,6 +120,10 @@ class BlizzardAPI:
         """Fetch details for a single pet."""
         return await self._game_data_request(f"/data/wow/pet/{pet_id}")
 
+    async def get_pet_ability(self, ability_id: int) -> dict:
+        """Fetch details for a single pet ability."""
+        return await self._game_data_request(f"/data/wow/pet-ability/{ability_id}")
+
     # ── Toy Data ──────────────────────────────────────────────────
     async def get_toy_index(self) -> dict:
         """Fetch the master list of all toys."""
