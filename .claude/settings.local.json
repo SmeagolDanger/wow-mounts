@@ -31,7 +31,13 @@
       "Bash(npx tsc:*)",
       "Bash(python -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in [''app/main.py'', ''app/config.py'', ''app/database.py'', ''app/models.py'', ''app/routes/auth.py'', ''app/routes/mounts.py'', ''app/routes/characters.py'', ''app/routes/farm.py'', ''app/routes/collections.py'', ''app/services/blizzard.py'']]\")",
       "Bash(wc -l \"c:/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app/\\(tabs\\)/routes.tsx\")",
-      "Bash(cat \"c:/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app/\\(tabs\\)/routes.tsx\")"
+      "Bash(cat \"c:/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app/\\(tabs\\)/routes.tsx\")",
+      "Read(//c/Users/Mike Kennedy/Downloads/**)",
+      "Bash(find 'c:/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app' -type f -name *.tsx -o -name *.ts)",
+      "Bash(find 'c:/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/components' -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
+      "Bash(xargs grep:*)",
+      "Read(//c/Users/Mike Kennedy/.claude/projects/c--Users-Mike-Kennedy-Documents-GitHub-wow-mounts/memory/**)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app/routes/farm.py''\\).read\\(\\)\\); print\\(''farm.py OK''\\)\")"
     ]
   }
 }

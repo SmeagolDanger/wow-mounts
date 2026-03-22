@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, RefreshControl,
-  Modal, Alert, FlatList, Animated, Easing,
+  Modal, Alert, SectionList, Animated, Easing, TextInput,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -11,25 +12,7 @@ import { Card } from '../../components';
 import api, { FarmTask, MountSummary, ResetInfo } from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
 
-interface Route { zone: string; tasks: FarmTask[]; completed: number; expansion?: string; order: number; }
-
-// Step types for the SimpleArmory-style planner
-type StepKind = 'portal' | 'fly' | 'farm';
-interface RouteStep {
-  id: string;
-  kind: StepKind;
-  label: string;       // mount name (farm) or zone/hub name (travel)
-  subLabel?: string;   // zone (farm) or expansion (portal/fly)
-  boss?: string;
-  notes?: string;
-  taskId?: number;
-  completed?: boolean;
-  stepNum?: number;    // only for farm steps
-  resetType?: string;  // daily/weekly/none
-  sourceType?: string; // raid/dungeon/etc
-}
-
-// ── WoW geographic routing data ──────────────────────────────────────────────
+// ── WoW geographic routing data ─────────────────────────────────────────────
 const ZONE_GEO: { zone: string; expansion: string; order: number; type: string; note?: string }[] = [
   // Classic
   { zone: 'Stratholme',              expansion: 'Classic',        order:  5, type: 'dungeon',    note: "Rivendare's Deathcharger — Baron Rivendare" },
@@ -37,10 +20,10 @@ const ZONE_GEO: { zone: string; expansion: string; order: number; type: string; 
   { zone: 'Molten Core',             expansion: 'Classic',        order:  7, type: 'raid' },
   { zone: 'Blackwing Lair',          expansion: 'Classic',        order:  8, type: 'raid' },
   { zone: "Ruins of Ahn'Qiraj",      expansion: 'Classic',        order:  9, type: 'raid' },
-  { zone: "Temple of Ahn'Qiraj",     expansion: 'Classic',        order: 10, type: 'raid',       note: 'Qiraji Battle Tanks — Trash & Bosses (only usable inside AQ)' },
+  { zone: "Temple of Ahn'Qiraj",     expansion: 'Classic',        order: 10, type: 'raid',       note: 'Qiraji Battle Tanks — Trash & Bosses' },
   // TBC
   { zone: 'Sethekk Halls',           expansion: 'TBC',            order: 20, type: 'dungeon',    note: 'Raven Lord — Anzu (Heroic)' },
-  { zone: "Magisters' Terrace",      expansion: 'TBC',            order: 21, type: 'dungeon',    note: "Swift White Hawkstrider — Kael'thas Sunstrider (Heroic)" },
+  { zone: "Magisters' Terrace",      expansion: 'TBC',            order: 21, type: 'dungeon',    note: "Swift White Hawkstrider — Kael'thas (Heroic)" },
   { zone: 'Karazhan',                expansion: 'TBC',            order: 22, type: 'raid',       note: 'Fiery Warhorse — Attumen the Huntsman' },
   { zone: 'Serpentshrine Cavern',    expansion: 'TBC',            order: 23, type: 'raid' },
   { zone: 'Tempest Keep',            expansion: 'TBC',            order: 24, type: 'raid',       note: "Ashes of Al'ar — Kael'thas Sunstrider" },
@@ -48,71 +31,71 @@ const ZONE_GEO: { zone: string; expansion: string; order: number; type: string; 
   { zone: 'Black Temple',            expansion: 'TBC',            order: 26, type: 'raid' },
   { zone: 'Sunwell Plateau',         expansion: 'TBC',            order: 27, type: 'raid' },
   // WotLK
-  { zone: 'Culling of Stratholme',   expansion: 'WotLK',          order: 30, type: 'dungeon',    note: 'Bronze Drake — Infinite Corruptor (Heroic timed)' },
+  { zone: 'Culling of Stratholme',   expansion: 'WotLK',          order: 30, type: 'dungeon',    note: 'Bronze Drake — Infinite Corruptor (Heroic)' },
   { zone: 'Utgarde Pinnacle',        expansion: 'WotLK',          order: 31, type: 'dungeon',    note: 'Blue Proto-Drake — Skadi the Ruthless (Heroic)' },
-  { zone: 'The Oculus',              expansion: 'WotLK',          order: 32, type: 'dungeon',    note: 'Blue Drake / Azure Drake — Cache of the Ley-Guardian (Heroic)' },
-  { zone: 'Vault of Archavon',       expansion: 'WotLK',          order: 33, type: 'raid',       note: 'Grand Black War Mammoth — any boss (requires Wintergrasp control)' },
-  { zone: 'The Obsidian Sanctum',    expansion: 'WotLK',          order: 34, type: 'raid',       note: 'Black Drake / Twilight Drake — Sartharion (with drakes alive, 10/25)' },
+  { zone: 'The Oculus',              expansion: 'WotLK',          order: 32, type: 'dungeon',    note: 'Blue Drake / Azure Drake — Ley-Guardian (Heroic)' },
+  { zone: 'Vault of Archavon',       expansion: 'WotLK',          order: 33, type: 'raid',       note: 'Grand Black War Mammoth — any boss' },
+  { zone: 'The Obsidian Sanctum',    expansion: 'WotLK',          order: 34, type: 'raid',       note: 'Black Drake / Twilight Drake — Sartharion' },
   { zone: 'The Eye of Eternity',     expansion: 'WotLK',          order: 35, type: 'raid',       note: 'Azure Drake / Blue Drake — Malygos' },
   { zone: 'Naxxramas',               expansion: 'WotLK',          order: 36, type: 'raid' },
-  { zone: 'Ulduar',                  expansion: 'WotLK',          order: 37, type: 'raid',       note: "Mimiron's Head — Yogg-Saron (25-man, no keepers)" },
-  { zone: 'Trial of the Crusader',   expansion: 'WotLK',          order: 38, type: 'raid',       note: 'Crusader mounts — Grand Crusader (Heroic 25)' },
+  { zone: 'Ulduar',                  expansion: 'WotLK',          order: 37, type: 'raid',       note: "Mimiron's Head — Yogg-Saron (0 keepers)" },
+  { zone: 'Trial of the Crusader',   expansion: 'WotLK',          order: 38, type: 'raid',       note: 'Grand Crusader (Heroic 25)' },
   { zone: 'Icecrown Citadel',        expansion: 'WotLK',          order: 39, type: 'raid',       note: 'Invincible — The Lich King (Heroic 25)' },
   // Cataclysm
   { zone: 'Vortex Pinnacle',         expansion: 'Cataclysm',      order: 40, type: 'dungeon',    note: 'Drake of the North Wind — Altairus' },
   { zone: 'The Stonecore',           expansion: 'Cataclysm',      order: 41, type: 'dungeon',    note: 'Vitreous Stone Drake — Slabhide' },
-  { zone: "Zul'Gurub",               expansion: 'Cataclysm',      order: 42, type: 'raid',       note: 'Armored Razzashi Raptor — Bloodlord Mandokir · Swift Zulian Panther — High Priestess Kilnara' },
+  { zone: "Zul'Gurub",               expansion: 'Cataclysm',      order: 42, type: 'raid',       note: 'Armored Razzashi Raptor · Swift Zulian Panther' },
   { zone: "Zul'Aman",                expansion: 'Cataclysm',      order: 43, type: 'raid',       note: 'Amani Battle Bear — timed run (Heroic)' },
   { zone: 'Blackwing Descent',       expansion: 'Cataclysm',      order: 44, type: 'raid' },
   { zone: 'Throne of the Four Winds',expansion: 'Cataclysm',      order: 45, type: 'raid',       note: "Drake of the South Wind — Al'Akir" },
-  { zone: 'Firelands',               expansion: 'Cataclysm',      order: 46, type: 'raid',       note: 'Pureblood Fire Hawk — Ragnaros · Flametalon of Alysrazor — Alysrazor' },
-  { zone: 'Dragon Soul',             expansion: 'Cataclysm',      order: 47, type: 'raid',       note: "Blazing Drake / Life-Binder's Handmaiden — Deathwing · Experiment 12-B — Ultraxion" },
+  { zone: 'Firelands',               expansion: 'Cataclysm',      order: 46, type: 'raid',       note: 'Pureblood Fire Hawk — Ragnaros · Flametalon — Alysrazor' },
+  { zone: 'Dragon Soul',             expansion: 'Cataclysm',      order: 47, type: 'raid',       note: "Blazing Drake / Life-Binder's Handmaiden — Deathwing" },
   // MoP
   { zone: "Mogu'shan Vaults",        expansion: 'MoP',            order: 50, type: 'raid',       note: 'Astral Cloud Serpent — Elegon' },
-  { zone: 'Throne of Thunder',       expansion: 'MoP',            order: 51, type: 'raid',       note: 'Clutch of Ji-Kun — Ji-Kun · Spawn of Horridon — Horridon' },
-  { zone: 'Siege of Orgrimmar',      expansion: 'MoP',            order: 52, type: 'raid',       note: "Kor'kron Juggernaut — Garrosh Hellscream (Mythic)" },
-  { zone: 'Sha of Anger',            expansion: 'MoP',            order: 53, type: 'world_boss', note: 'Heavenly Onyx Cloud Serpent — Sha of Anger (Kun-Lai Summit)' },
-  { zone: 'Nalak',                   expansion: 'MoP',            order: 54, type: 'world_boss', note: 'Thundering Cobalt Cloud Serpent — Nalak (Isle of Thunder)' },
-  { zone: 'Oondasta',                expansion: 'MoP',            order: 55, type: 'world_boss', note: 'Cobalt Primordial Direhorn — Oondasta (Isle of Giants)' },
-  { zone: 'Galleon',                 expansion: 'MoP',            order: 56, type: 'world_boss', note: "Son of Galleon — Salyis's Warband (Valley of the Four Winds)" },
-  { zone: 'Huolon',                  expansion: 'MoP',            order: 57, type: 'world_boss', note: 'Thundering Onyx Cloud Serpent — Huolon (Timeless Isle)' },
+  { zone: 'Throne of Thunder',       expansion: 'MoP',            order: 51, type: 'raid',       note: 'Clutch of Ji-Kun · Spawn of Horridon' },
+  { zone: 'Siege of Orgrimmar',      expansion: 'MoP',            order: 52, type: 'raid',       note: "Kor'kron Juggernaut — Garrosh (Mythic)" },
+  { zone: 'Sha of Anger',            expansion: 'MoP',            order: 53, type: 'world_boss', note: 'Heavenly Onyx Cloud Serpent' },
+  { zone: 'Nalak',                   expansion: 'MoP',            order: 54, type: 'world_boss', note: 'Thundering Cobalt Cloud Serpent' },
+  { zone: 'Oondasta',                expansion: 'MoP',            order: 55, type: 'world_boss', note: 'Cobalt Primordial Direhorn' },
+  { zone: 'Galleon',                 expansion: 'MoP',            order: 56, type: 'world_boss', note: "Son of Galleon" },
+  { zone: 'Huolon',                  expansion: 'MoP',            order: 57, type: 'world_boss', note: 'Thundering Onyx Cloud Serpent' },
   // WoD
   { zone: 'Highmaul',                expansion: 'WoD',            order: 60, type: 'raid' },
   { zone: 'Blackrock Foundry',       expansion: 'WoD',            order: 61, type: 'raid',       note: 'Ironhoof Destroyer — Blackhand (Mythic)' },
   { zone: 'Hellfire Citadel',        expansion: 'WoD',            order: 62, type: 'raid',       note: 'Felsteel Annihilator — Archimonde (Mythic)' },
-  { zone: 'Tanaan Jungle',           expansion: 'WoD',            order: 63, type: 'world_boss', note: 'Reins of the Terrorfiend — Terrorguard · Swift Breezestrider — Deathtalon · Tundra Icehoof — Vengeance · Rattling Iron Cage — Doomroller' },
-  { zone: 'Draenor Rares',           expansion: 'WoD',            order: 64, type: 'world_boss', note: 'Reins of Rukhmar (Spires of Arak), Sunhide Gronnling (Gorgrond), Nakk the Thunderer (Nagrand)' },
+  { zone: 'Tanaan Jungle',           expansion: 'WoD',            order: 63, type: 'world_boss', note: 'Terrorfiend · Swift Breezestrider · Tundra Icehoof' },
+  { zone: 'Draenor Rares',           expansion: 'WoD',            order: 64, type: 'world_boss', note: 'Rukhmar · Sunhide Gronnling · Nakk the Thunderer' },
   // Legion
-  { zone: 'Return to Karazhan',      expansion: 'Legion',         order: 70, type: 'dungeon',    note: 'Smoldering Ember Wyrm — Nightbane · Midnight — Attumen (Mythic)' },
+  { zone: 'Return to Karazhan',      expansion: 'Legion',         order: 70, type: 'dungeon',    note: 'Ember Wyrm — Nightbane · Midnight — Attumen' },
   { zone: 'The Emerald Nightmare',   expansion: 'Legion',         order: 71, type: 'raid' },
-  { zone: 'The Nighthold',           expansion: 'Legion',         order: 72, type: 'raid',       note: "Felblaze Infernal — Gul'dan · Hellfire Infernal — Gul'dan (Mythic)" },
+  { zone: 'The Nighthold',           expansion: 'Legion',         order: 72, type: 'raid',       note: "Felblaze Infernal — Gul'dan" },
   { zone: 'Tomb of Sargeras',        expansion: 'Legion',         order: 73, type: 'raid',       note: "Abyss Worm — Mistress Sassz'ine" },
-  { zone: 'Antorus, the Burning Throne', expansion: 'Legion',     order: 74, type: 'raid',       note: "Antoran Charhound — Shatug · Shackled Ur'zul — Argus the Unmaker (Mythic)" },
-  { zone: 'Antoran Wastes',          expansion: 'Legion',         order: 75, type: 'world_boss', note: 'Several mounts from rare world bosses on Argus' },
+  { zone: 'Antorus',                 expansion: 'Legion',         order: 74, type: 'raid',       note: "Antoran Charhound · Shackled Ur'zul (Mythic)" },
+  { zone: 'Argus Rares',             expansion: 'Legion',         order: 75, type: 'world_boss', note: 'World boss mounts on Argus' },
   // BfA
   { zone: 'Freehold',                expansion: 'BfA',            order: 80, type: 'dungeon',    note: 'Sharkbait — Harlan Sweete (Mythic)' },
   { zone: "Kings' Rest",             expansion: 'BfA',            order: 81, type: 'dungeon',    note: 'Tomb Stalker — King Dazar (Mythic)' },
-  { zone: 'The Underrot',            expansion: 'BfA',            order: 82, type: 'dungeon',    note: 'Underrot Crawg — Unbound Abomination (Mythic)' },
-  { zone: "Battle of Dazar'alor",    expansion: 'BfA',            order: 83, type: 'raid',       note: "G.M.O.D. — Mekkatorque · Glacial Tidestorm — Jaina Proudmoore (Mythic)" },
-  { zone: "Ny'alotha",               expansion: 'BfA',            order: 84, type: 'raid',       note: "Ny'alotha Allseer — N'Zoth the Corruptor (Mythic)" },
-  { zone: 'Mechagon',                expansion: 'BfA',            order: 85, type: 'world_boss', note: 'Junkheap Drifter — Rustfeather · Rusty Mechanocrawler — Arachnoid Harvester' },
+  { zone: 'The Underrot',            expansion: 'BfA',            order: 82, type: 'dungeon',    note: 'Underrot Crawg (Mythic)' },
+  { zone: "Battle of Dazar'alor",    expansion: 'BfA',            order: 83, type: 'raid',       note: 'G.M.O.D. · Glacial Tidestorm (Mythic)' },
+  { zone: "Ny'alotha",               expansion: 'BfA',            order: 84, type: 'raid',       note: "Ny'alotha Allseer — N'Zoth (Mythic)" },
+  { zone: 'Mechagon',                expansion: 'BfA',            order: 85, type: 'world_boss', note: 'Junkheap Drifter · Rusty Mechanocrawler' },
   { zone: 'Nazjatar',                expansion: 'BfA',            order: 86, type: 'world_boss', note: 'Silent Glider — Soundless' },
-  { zone: 'Arathi / Darkshore',      expansion: 'BfA',            order: 87, type: 'world_boss', note: 'Highland Mustang, Kaldorei Nightsaber and others from warfront rares' },
+  { zone: 'Warfronts',               expansion: 'BfA',            order: 87, type: 'world_boss', note: 'Highland Mustang · Kaldorei Nightsaber' },
   // Shadowlands
-  { zone: 'Sanctum of Domination',   expansion: 'Shadowlands',    order: 90, type: 'raid',       note: "Sanctum Gloomcharger — The Nine · Vengeance's Reins — Sylvanas (Mythic)" },
+  { zone: 'Sanctum of Domination',   expansion: 'Shadowlands',    order: 90, type: 'raid',       note: "Gloomcharger · Vengeance's Reins (Mythic)" },
   { zone: 'Sepulcher of the First Ones', expansion: 'Shadowlands', order: 91, type: 'raid',      note: 'Zereth Overseer — The Jailer (Mythic)' },
-  { zone: 'The Maw',                 expansion: 'Shadowlands',    order: 92, type: 'world_boss', note: 'Fallen Charger — Fallen Charger · Mawsworn Soulhunter — Gorged Shadehound' },
-  { zone: 'Ardenweald',              expansion: 'Shadowlands',    order: 93, type: 'world_boss', note: "Arboreal Gulper — Humon'gozz · Wild Glimmerfur Prowler — Valfir the Unrelenting" },
-  { zone: 'Revendreth',              expansion: 'Shadowlands',    order: 94, type: 'world_boss', note: 'Horrid Dredwing — Harika the Horrid · Hopecrusher Gargon — Hopecrusher' },
+  { zone: 'The Maw',                 expansion: 'Shadowlands',    order: 92, type: 'world_boss', note: 'Fallen Charger · Mawsworn Soulhunter' },
+  { zone: 'Ardenweald',              expansion: 'Shadowlands',    order: 93, type: 'world_boss', note: 'Arboreal Gulper · Wild Glimmerfur Prowler' },
+  { zone: 'Revendreth',              expansion: 'Shadowlands',    order: 94, type: 'world_boss', note: 'Horrid Dredwing · Hopecrusher Gargon' },
   // Dragonflight
   { zone: 'Vault of the Incarnates', expansion: 'Dragonflight',   order: 100, type: 'raid' },
-  { zone: 'Aberrus, the Shadowed Crucible', expansion: 'Dragonflight', order: 101, type: 'raid' },
-  { zone: "Amirdrassil, the Dream's Hope", expansion: 'Dragonflight', order: 102, type: 'raid',  note: "Anu'relos, Flame's Guidance — Fyrakk the Blazing (Mythic)" },
-  { zone: 'Dragon Isles Rares',      expansion: 'Dragonflight',   order: 103, type: 'world_boss', note: 'Liberated Slyvern (Azure Span), Ancient Salamanther (Forbidden Reach) and more' },
+  { zone: 'Aberrus',                 expansion: 'Dragonflight',   order: 101, type: 'raid' },
+  { zone: "Amirdrassil",             expansion: 'Dragonflight',   order: 102, type: 'raid',  note: "Anu'relos — Fyrakk (Mythic)" },
+  { zone: 'Dragon Isles Rares',      expansion: 'Dragonflight',   order: 103, type: 'world_boss', note: 'Liberated Slyvern · Ancient Salamanther' },
   // The War Within
-  { zone: 'Nerub-ar Palace',         expansion: 'The War Within', order: 110, type: 'raid',      note: 'Sureki Skyrazor / Ascendant Skyrazor — Queen Ansurek' },
-  { zone: 'Liberation of Undermine', expansion: 'The War Within', order: 111, type: 'raid',      note: 'Prototype A.S.M.R. / The Big G — Chrome King Gallywix' },
-  { zone: 'Khaz Algar Rares',        expansion: 'The War Within', order: 112, type: 'world_boss', note: "Alunira (Isle of Dorn), Ol' Mole Rufus (Ringing Deeps) and more" },
+  { zone: 'Nerub-ar Palace',         expansion: 'The War Within', order: 110, type: 'raid',      note: 'Sureki Skyrazor — Queen Ansurek' },
+  { zone: 'Liberation of Undermine', expansion: 'The War Within', order: 111, type: 'raid',      note: 'The Big G — Chrome King Gallywix' },
+  { zone: 'Khaz Algar Rares',        expansion: 'The War Within', order: 112, type: 'world_boss', note: "Alunira · Ol' Mole Rufus" },
   // Non-location
   { zone: 'Reputation Vendors',      expansion: 'Various',        order: 200, type: 'reputation' },
   { zone: 'Achievements',            expansion: 'Various',        order: 201, type: 'achievement' },
@@ -123,72 +106,37 @@ const ZONE_GEO: { zone: string; expansion: string; order: number; type: string; 
 const ZONE_ORDER     = new Map(ZONE_GEO.map(z => [z.zone, z.order]));
 const ZONE_EXPANSION = new Map(ZONE_GEO.map(z => [z.zone, z.expansion]));
 const ZONE_NOTE      = new Map(ZONE_GEO.map(z => [z.zone, z.note]));
-const ZONE_TYPE      = new Map(ZONE_GEO.map(z => [z.zone, z.type]));
-
-// Expansion portal/travel hubs
-const EXPANSION_HUBS: Record<string, string> = {
-  'Classic':          'Stormwind / Orgrimmar',
-  'TBC':              'Shattrath City',
-  'WotLK':            'Dalaran (Northrend)',
-  'Cataclysm':        'Stormwind / Orgrimmar',
-  'MoP':              'Shrine of Seven Stars / Two Moons',
-  'WoD':              'Ashran',
-  'Legion':           'Dalaran (Broken Isles)',
-  'BfA':              "Boralus / Dazar'alor",
-  'Shadowlands':      'Oribos',
-  'Dragonflight':     'Valdrakken',
-  'The War Within':   'Dornogal',
-};
 
 const SOURCE_ZONES: Record<string, string> = {
-  raid:        'Icecrown Citadel',
-  dungeon:     'Sethekk Halls',
-  world_boss:  'Sha of Anger',
-  reputation:  'Reputation Vendors',
-  achievement: 'Achievements',
-  vendor:      'Vendors',
-  quest:       'Questlines',
+  raid: 'Icecrown Citadel', dungeon: 'Sethekk Halls', world_boss: 'Sha of Anger',
+  reputation: 'Reputation Vendors', achievement: 'Achievements', vendor: 'Vendors', quest: 'Questlines',
 };
-
 function getBestZone(sourceType: string) { return SOURCE_ZONES[sourceType] ?? 'Unknown'; }
 
-// Parse boss + difficulty notes from ZONE_GEO note string
-function extractBossInfo(zoneName: string): { boss?: string; notes?: string } {
-  const note = ZONE_NOTE.get(zoneName);
-  if (!note) return {};
-  const first = note.split('·')[0].trim();
-  const dashIdx = first.indexOf(' — ');
-  if (dashIdx === -1) return {};
-  const afterDash = first.slice(dashIdx + 3).trim();
-  const parenStart = afterDash.lastIndexOf(' (');
-  if (parenStart === -1) return { boss: afterDash };
-  return {
-    boss: afterDash.slice(0, parenStart).trim(),
-    notes: afterDash.slice(parenStart + 2, afterDash.lastIndexOf(')')) || undefined,
-  };
-}
+const EXP_COLORS: Record<string, string> = {
+  Classic: '#D4A017', TBC: '#3CB371', WotLK: '#70B8FF', Cataclysm: '#FF6347',
+  MoP: '#22C55E', WoD: '#B8860B', Legion: '#4ADE80', BfA: '#F59E0B',
+  Shadowlands: '#9B6FFF', Dragonflight: '#22D3EE', 'The War Within': '#C084FC', Various: '#94A3B8',
+};
 
-// ── Reset timer helpers ──────────────────────────────────────────────────────
+const TYPE_META: Record<string, { icon: string; color: string }> = {
+  raid: { icon: 'skull-outline', color: '#C084FC' }, dungeon: { icon: 'key-outline', color: '#38BDF8' },
+  world_boss: { icon: 'flame-outline', color: '#FB923C' }, reputation: { icon: 'people-outline', color: '#4ADE80' },
+  achievement: { icon: 'trophy-outline', color: '#F5B800' }, vendor: { icon: 'cart-outline', color: '#E2E8F0' },
+  quest: { icon: 'flag-outline', color: '#FDE047' },
+};
 
+const ALL_SOURCE_TYPES = ['raid', 'dungeon', 'world_boss', 'reputation', 'achievement', 'vendor', 'quest'];
+
+// ── Reset timer helpers ─────────────────────────────────────────────────────
 function getNextDailyReset(): Date {
   const now = new Date();
-  const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 0, 0));
-  if (now >= reset) reset.setUTCDate(reset.getUTCDate() + 1);
-  return reset;
+  const r = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 0, 0));
+  if (now >= r) r.setUTCDate(r.getUTCDate() + 1);
+  return r;
 }
-
 function getNextWeeklyReset(): Date {
   const now = new Date();
-  // US weekly reset: Tuesday 15:00 UTC
-  const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 0, 0));
-  const day = reset.getUTCDay(); // 0=Sun
-  const daysUntilTuesday = (2 - day + 7) % 7 || 7; // next Tuesday (not today if past reset)
-  reset.setUTCDate(reset.getUTCDate() + daysUntilTuesday);
-  // If today is Tuesday and we haven't passed 15:00 UTC yet, use today
-  if (day === 2 && now < reset) {
-    reset.setUTCDate(reset.getUTCDate() - 7 + 7); // already correct
-  }
-  // Actually simplify: find next Tuesday 15:00 UTC
   const r = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 0, 0));
   const d = r.getUTCDay();
   let add = (2 - d + 7) % 7;
@@ -196,86 +144,92 @@ function getNextWeeklyReset(): Date {
   r.setUTCDate(r.getUTCDate() + add);
   return r;
 }
-
-function formatCountdown(target: Date): string {
+function fmtCountdown(target: Date): string {
   const diff = target.getTime() - Date.now();
   if (diff <= 0) return 'Now';
-  const hours = Math.floor(diff / 3600000);
-  const mins = Math.floor((diff % 3600000) / 60000);
-  if (hours >= 24) {
-    const days = Math.floor(hours / 24);
-    const remainHours = hours % 24;
-    return `${days}d ${remainHours}h`;
-  }
-  return `${hours}h ${mins}m`;
+  const h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000);
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+  return `${h}h ${m}m`;
 }
 
-// Build sequential steps for a set of tasks (with travel steps inserted)
-function buildRouteSteps(tasksToShow: FarmTask[]): RouteStep[] {
+// ── Grouped section data ────────────────────────────────────────────────────
+interface TaskRow {
+  task: FarmTask;
+  zone: string;
+  zoneNote?: string;
+  zoneType?: string;
+}
+interface Section {
+  title: string;       // expansion name
+  color: string;
+  data: TaskRow[];
+  completed: number;
+  total: number;
+}
+
+function buildSections(tasks: FarmTask[], hideCompleted: boolean): Section[] {
+  // Group tasks by zone, then group zones by expansion
   const zoneMap = new Map<string, FarmTask[]>();
-  for (const t of tasksToShow) {
-    const z = t.zone_name || 'Unknown';
+  for (const t of tasks) {
+    if (hideCompleted && t.completed) continue;
+    const z = t.zone_name || 'Unassigned';
     if (!zoneMap.has(z)) zoneMap.set(z, []);
     zoneMap.get(z)!.push(t);
   }
+  // Also need total counts including hidden completed
+  const allZoneMap = new Map<string, FarmTask[]>();
+  for (const t of tasks) {
+    const z = t.zone_name || 'Unassigned';
+    if (!allZoneMap.has(z)) allZoneMap.set(z, []);
+    allZoneMap.get(z)!.push(t);
+  }
+
+  // Sort zones by geo order
   const sortedZones = Array.from(zoneMap.keys()).sort((a, b) =>
     (ZONE_ORDER.get(a) ?? 999) - (ZONE_ORDER.get(b) ?? 999)
   );
 
-  const steps: RouteStep[] = [];
-  let lastExpansion: string | null = null;
-  let farmNum = 0;
-
+  // Group by expansion
+  const expMap = new Map<string, TaskRow[]>();
   for (const zone of sortedZones) {
-    const expansion = ZONE_EXPANSION.get(zone) ?? 'Various';
+    const exp = ZONE_EXPANSION.get(zone) ?? 'Various';
+    if (!expMap.has(exp)) expMap.set(exp, []);
     const zoneTasks = zoneMap.get(zone)!.sort((a, b) => a.sort_order - b.sort_order);
-
-    if (expansion !== 'Various' && expansion !== lastExpansion && EXPANSION_HUBS[expansion]) {
-      steps.push({
-        id: `portal-${expansion}`,
-        kind: 'portal',
-        label: `Portal to ${EXPANSION_HUBS[expansion]}`,
-        subLabel: expansion,
-      });
-      lastExpansion = expansion;
-    }
-
-    if (expansion !== 'Various') {
-      const typeEntry = ZONE_GEO.find(g => g.zone === zone);
-      const verb = typeEntry?.type === 'world_boss' ? 'Travel to' : 'Fly to';
-      steps.push({
-        id: `fly-${zone}`,
-        kind: 'fly',
-        label: `${verb} ${zone}`,
-        subLabel: expansion,
-      });
-    }
-
-    const { boss, notes: bossNotes } = extractBossInfo(zone);
+    const geo = ZONE_GEO.find(g => g.zone === zone);
     for (const task of zoneTasks) {
-      farmNum++;
-      const defaultNotes = task.reset_type === 'weekly' ? 'Weekly' : task.reset_type === 'daily' ? 'Daily' : undefined;
-      steps.push({
-        id: `farm-${task.id}`,
-        kind: 'farm',
-        label: task.title,
-        subLabel: zone,
-        boss,
-        notes: bossNotes ?? defaultNotes,
-        taskId: task.id,
-        completed: task.completed,
-        stepNum: farmNum,
-        resetType: task.reset_type,
-        sourceType: task.source_type,
-      });
+      expMap.get(exp)!.push({ task, zone, zoneNote: ZONE_NOTE.get(zone), zoneType: geo?.type });
     }
   }
-  return steps;
+
+  // Count totals per expansion (including hidden)
+  const expTotals = new Map<string, { total: number; completed: number }>();
+  for (const [zone, zt] of allZoneMap.entries()) {
+    const exp = ZONE_EXPANSION.get(zone) ?? 'Various';
+    if (!expTotals.has(exp)) expTotals.set(exp, { total: 0, completed: 0 });
+    const c = expTotals.get(exp)!;
+    c.total += zt.length;
+    c.completed += zt.filter(t => t.completed).length;
+  }
+
+  const sections: Section[] = [];
+  const expOrder: string[] = ['Classic', 'TBC', 'WotLK', 'Cataclysm', 'MoP', 'WoD', 'Legion', 'BfA', 'Shadowlands', 'Dragonflight', 'The War Within', 'Various'];
+  for (const exp of expOrder) {
+    const rows = expMap.get(exp);
+    if (!rows || rows.length === 0) continue;
+    const counts = expTotals.get(exp) || { total: rows.length, completed: 0 };
+    sections.push({
+      title: exp,
+      color: EXP_COLORS[exp] || '#94A3B8',
+      data: rows,
+      completed: counts.completed,
+      total: counts.total,
+    });
+  }
+  return sections;
 }
 
-const ALL_SOURCE_TYPES = ['raid', 'dungeon', 'world_boss', 'reputation', 'achievement', 'vendor', 'quest'];
-
-export default function RoutesScreen() {
+// ═══════════════════════════════════════════════════════════════════════════════
+export default function PlannerScreen() {
   const { collectedIds, selectedChar } = useApp();
   const [tasks, setTasks] = useState<FarmTask[]>([]);
   const [mounts, setMounts] = useState<MountSummary[]>([]);
@@ -283,29 +237,29 @@ export default function RoutesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [resetInfo, setResetInfo] = useState<ResetInfo | null>(null);
 
-  // Run planner modal
-  const [runTitle, setRunTitle] = useState('');
-  const [runZoneFilter, setRunZoneFilter] = useState<string | null>(null);
+  // UI state
+  const [hideCompleted, setHideCompleted] = useState(false);
+  const [collapsedExps, setCollapsedExps] = useState<Set<string>>(new Set());
+  const [, setTick] = useState(0);
 
-  // Auto-plan filter modal
+  // Auto-plan modal
   const [planModalVisible, setPlanModalVisible] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set(ALL_SOURCE_TYPES));
   const [maxTasks, setMaxTasks] = useState(30);
   const [planning, setPlanning] = useState(false);
 
-  // New: hide completed toggle
-  const [hideCompleted, setHideCompleted] = useState(false);
+  // Add task modal
+  const [showAdd, setShowAdd] = useState(false);
+  const [nTitle, setNTitle] = useState('');
+  const [nSrc, setNSrc] = useState('');
+  const [nZone, setNZone] = useState('');
+  const [nReset, setNReset] = useState<'daily' | 'weekly' | 'none'>('weekly');
 
-  // New: countdown timer tick
-  const [, setTick] = useState(0);
+  // Countdown ticker (every 60s)
   useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 60000);
-    return () => clearInterval(interval);
+    const i = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(i);
   }, []);
-
-  // New: celebration animation
-  const celebrationScale = useRef(new Animated.Value(0)).current;
-  const celebrationOpacity = useRef(new Animated.Value(0)).current;
 
   const load = useCallback(async () => {
     try {
@@ -319,95 +273,32 @@ export default function RoutesScreen() {
   useEffect(() => { load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const routes = useMemo(() => {
-    const map = new Map<string, FarmTask[]>();
-    for (const t of tasks) {
-      const z = t.zone_name || 'Unassigned';
-      if (!map.has(z)) map.set(z, []);
-      map.get(z)!.push(t);
-    }
-    return Array.from(map.entries())
-      .map(([zone, zt]) => ({
-        zone,
-        tasks: zt.sort((a, b) => a.sort_order - b.sort_order),
-        completed: zt.filter(t => t.completed).length,
-        expansion: ZONE_EXPANSION.get(zone),
-        order: ZONE_ORDER.get(zone) ?? 999,
-      }))
-      .sort((a, b) => a.order - b.order);
-  }, [tasks]);
+  // ── Sections ──
+  const sections = useMemo(() => buildSections(tasks, hideCompleted), [tasks, hideCompleted]);
 
-  // Filter routes for display (hide completed toggle)
-  const displayRoutes = useMemo(() => {
-    if (!hideCompleted) return routes;
-    return routes.filter(r => r.completed < r.tasks.length);
-  }, [routes, hideCompleted]);
+  // ── Counts ──
+  const totalT = tasks.length;
+  const totalD = tasks.filter(t => t.completed).length;
+  const dailyT = tasks.filter(t => t.reset_type === 'daily');
+  const weeklyT = tasks.filter(t => t.reset_type === 'weekly');
+  const dailyDone = dailyT.filter(t => t.completed).length;
+  const weeklyDone = weeklyT.filter(t => t.completed).length;
+  const pct = totalT > 0 ? Math.round(totalD / totalT * 100) : 0;
+  const allDone = totalT > 0 && totalD === totalT;
 
-  // Steps for the run modal — respects hideCompleted
-  const activeSteps = useMemo((): RouteStep[] => {
-    if (!runZoneFilter) return [];
-    let filtered = runZoneFilter === 'ALL' ? tasks : tasks.filter(t => t.zone_name === runZoneFilter);
-    if (hideCompleted) filtered = filtered.filter(t => !t.completed);
-    return buildRouteSteps(filtered);
-  }, [runZoneFilter, tasks, hideCompleted]);
-
-  const activeFarmSteps = activeSteps.filter(s => s.kind === 'farm');
-  const activeDoneCount = activeFarmSteps.filter(s => s.completed).length;
-  const allFarmStepsInRun = useMemo(() => {
-    if (!runZoneFilter) return [];
-    const filtered = runZoneFilter === 'ALL' ? tasks : tasks.filter(t => t.zone_name === runZoneFilter);
-    return buildRouteSteps(filtered).filter(s => s.kind === 'farm');
-  }, [runZoneFilter, tasks]);
-  const allRunDoneCount = allFarmStepsInRun.filter(s => s.completed).length;
-
-  const totalT = tasks.length, totalD = tasks.filter(t => t.completed).length;
-
-  // Celebration trigger
-  useEffect(() => {
-    if (runZoneFilter && allFarmStepsInRun.length > 0 && allRunDoneCount === allFarmStepsInRun.length) {
-      celebrationScale.setValue(0);
-      celebrationOpacity.setValue(1);
-      Animated.sequence([
-        Animated.spring(celebrationScale, { toValue: 1, useNativeDriver: true, friction: 4 }),
-        Animated.timing(celebrationOpacity, { toValue: 1, duration: 3000, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [allRunDoneCount, allFarmStepsInRun.length, runZoneFilter]);
-
+  // ── Actions ──
   const toggle = async (id: number) => {
     try {
       const r = await api.toggleFarmTask(id);
       setTasks(p => p.map(t => t.id === id ? { ...t, completed: r.completed, completed_at: r.completed ? new Date().toISOString() : undefined } : t));
     } catch {}
   };
-
   const deleteTask = async (id: number) => {
-    try {
-      await api.deleteFarmTask(id);
-      setTasks(p => p.filter(t => t.id !== id));
-    } catch {}
+    try { await api.deleteFarmTask(id); setTasks(p => p.filter(t => t.id !== id)); } catch {}
   };
 
-  const deleteRoute = (r: Route) => {
-    Alert.alert(
-      `Delete "${r.zone}"?`,
-      `This will remove all ${r.tasks.length} task${r.tasks.length !== 1 ? 's' : ''}.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete All', style: 'destructive',
-          onPress: async () => {
-            for (const t of r.tasks) { try { await api.deleteFarmTask(t.id); } catch {} }
-            setTasks(p => p.filter(t => !r.tasks.find(rt => rt.id === t.id)));
-          },
-        },
-      ]
-    );
-  };
-
-  // New: batch reset functions
-  const handleReset = async (filter: 'all' | 'daily' | 'weekly' | 'dungeons' | 'raids', label: string) => {
-    const completedCount = tasks.filter(t => {
+  const handleReset = (filter: 'all' | 'daily' | 'weekly' | 'dungeons' | 'raids', label: string) => {
+    const ct = tasks.filter(t => {
       if (!t.completed) return false;
       if (filter === 'all') return true;
       if (filter === 'daily') return t.reset_type === 'daily';
@@ -416,39 +307,31 @@ export default function RoutesScreen() {
       if (filter === 'raids') return t.source_type === 'raid';
       return false;
     }).length;
-
-    if (completedCount === 0) {
-      Alert.alert('Nothing to Reset', `No completed ${label.toLowerCase()} to reset.`);
-      return;
-    }
-
-    Alert.alert(
-      `Reset ${label}?`,
-      `This will uncheck ${completedCount} completed task${completedCount !== 1 ? 's' : ''}.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.resetFarmTasks(filter);
-              await load();
-            } catch {}
-          },
-        },
-      ]
-    );
+    if (ct === 0) { Alert.alert('Nothing to Reset', `No completed ${label.toLowerCase()} to reset.`); return; }
+    Alert.alert(`Reset ${label}?`, `Uncheck ${ct} task${ct !== 1 ? 's' : ''}.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Reset', style: 'destructive', onPress: async () => { try { await api.resetFarmTasks(filter); await load(); } catch {} } },
+    ]);
   };
 
-  const toggleType = (type: string) => {
-    setSelectedTypes(prev => {
+  const addTask = async () => {
+    if (!nTitle.trim()) return;
+    try {
+      await api.createFarmTask({ title: nTitle.trim(), source_type: nSrc.trim() || undefined, zone_name: nZone.trim() || undefined, reset_type: nReset });
+      setNTitle(''); setNSrc(''); setNZone(''); setNReset('weekly'); setShowAdd(false);
+      await load();
+    } catch {}
+  };
+
+  const toggleCollapse = (exp: string) => {
+    setCollapsedExps(prev => {
       const next = new Set(prev);
-      if (next.has(type)) next.delete(type); else next.add(type);
+      if (next.has(exp)) next.delete(exp); else next.add(exp);
       return next;
     });
   };
 
+  // ── Auto-plan ──
   const planPreviewCount = useMemo(() => {
     const existingMountIds = new Set(tasks.filter(t => t.mount_id).map(t => t.mount_id));
     const charFaction = selectedChar?.faction?.toLowerCase();
@@ -471,14 +354,11 @@ export default function RoutesScreen() {
       (selectedChar ? !collectedIds.has(m.id) : true) &&
       !(charFaction && m.faction && m.faction !== charFaction)
     );
-    if (missing.length === 0) { Alert.alert('Nothing to Add', 'All selected mount types are already planned or collected.'); return; }
-
+    if (missing.length === 0) { Alert.alert('Nothing to Add', 'All selected types already planned or collected.'); return; }
     const ranked = [...missing].sort((a, b) => {
-      const zA = getBestZone(a.source_type || '');
-      const zB = getBestZone(b.source_type || '');
+      const zA = getBestZone(a.source_type || ''), zB = getBestZone(b.source_type || '');
       return (ZONE_ORDER.get(zA) ?? 999) - (ZONE_ORDER.get(zB) ?? 999);
     }).slice(0, maxTasks);
-
     setPlanning(true);
     let added = 0;
     for (const m of ranked) {
@@ -491,441 +371,365 @@ export default function RoutesScreen() {
     Alert.alert('Plan Created', `Added ${added} mount${added !== 1 ? 's' : ''} to your farm routes!`);
   };
 
-  const typeLabels: Record<string, { label: string; icon: string; color: string }> = {
-    raid:        { label: 'Raids',        icon: 'skull-outline',    color: '#C084FC' },
-    dungeon:     { label: 'Dungeons',     icon: 'key-outline',      color: '#38BDF8' },
-    world_boss:  { label: 'World Bosses', icon: 'flame-outline',    color: '#FB923C' },
-    reputation:  { label: 'Reputation',   icon: 'people-outline',   color: '#4ADE80' },
-    achievement: { label: 'Achievements', icon: 'trophy-outline',   color: '#F5B800' },
-    vendor:      { label: 'Vendors',      icon: 'cart-outline',     color: '#E2E8F0' },
-    quest:       { label: 'Quests',       icon: 'flag-outline',     color: '#FDE047' },
-  };
+  const daily = fmtCountdown(getNextDailyReset());
+  const weekly = fmtCountdown(getNextWeeklyReset());
 
-  // Render a single step row in the run planner
-  const renderStep = useCallback(({ item: step }: { item: RouteStep }) => {
-    if (step.kind === 'portal') {
-      return (
-        <View style={z.portalRow}>
-          <View style={z.portalIcon}><Ionicons name="planet-outline" size={16} color={colors.frost.primary} /></View>
-          <View style={z.travelMid}>
-            <Text style={z.portalLabel}>{step.label}</Text>
-            {step.subLabel && <Text style={z.travelExp}>{step.subLabel}</Text>}
-          </View>
-        </View>
-      );
-    }
-    if (step.kind === 'fly') {
-      return (
-        <View style={z.flyRow}>
-          <View style={z.flyIcon}><Ionicons name="compass-outline" size={14} color={colors.text.tertiary} /></View>
-          <Text style={z.flyLabel}>{step.label}</Text>
-        </View>
-      );
-    }
-    // Farm step
-    const done = step.completed;
-    return (
-      <Pressable
-        style={[z.farmRow, done && z.farmRowDone]}
-        onPress={() => step.taskId && toggle(step.taskId)}
-        onLongPress={() => {
-          if (!step.taskId) return;
-          Alert.alert('Remove', `Remove "${step.label}" from farm list?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Remove', style: 'destructive', onPress: () => step.taskId && deleteTask(step.taskId) },
-          ]);
-        }}
-      >
-        <View style={[z.checkbox, done && z.checkboxDone]}>
-          {done && <Ionicons name="checkmark" size={12} color={colors.bg.primary} />}
-        </View>
-        <Text style={z.stepNum}>{step.stepNum}</Text>
-        <View style={z.farmMid}>
-          <Text style={[z.farmName, done && z.farmNameDone]} numberOfLines={1}>{step.label}</Text>
-          {step.boss && <Text style={z.bossName} numberOfLines={1}>{step.boss}</Text>}
-        </View>
-        {step.resetType && step.resetType !== 'none' && (
-          <View style={[z.resetBadge, step.resetType === 'weekly' ? z.resetWeekly : z.resetDaily]}>
-            <Text style={z.resetBadgeT}>{step.resetType === 'weekly' ? 'W' : 'D'}</Text>
-          </View>
-        )}
-        {step.notes && (
-          <View style={z.notesBadge}><Text style={z.notesBadgeT} numberOfLines={1}>{step.notes}</Text></View>
-        )}
-      </Pressable>
-    );
-  }, [tasks]);
-
-  const allDone = runZoneFilter && allFarmStepsInRun.length > 0 && allRunDoneCount === allFarmStepsInRun.length;
-  const dailyCountdown = formatCountdown(getNextDailyReset());
-  const weeklyCountdown = formatCountdown(getNextWeeklyReset());
+  // ── Track which zone the previous row was in (for zone subheaders) ──
+  let lastZone = '';
 
   return (
-    <SafeAreaView style={z.safe} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={z.content}
+    <SafeAreaView style={s.safe} edges={['top']}>
+      <SectionList
+        sections={sections.filter(sec => !collapsedExps.has(sec.title)).map(sec => sec)}
+        // We manually render collapsed sections via stickySectionHeadersEnabled + renderSectionHeader
+        keyExtractor={(item, idx) => `${item.task.id}-${idx}`}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold.primary} progressBackgroundColor={colors.bg.secondary} />}
-      >
-        <Text style={z.title}>Farm Planner</Text>
-        <Text style={z.sub}>{selectedChar ? `Planning for ${selectedChar.display.split('-')[0]}` : 'Auto-plan routes or manage your farm runs'}</Text>
 
-        {/* Reset countdown timers */}
-        <View style={z.timerRow}>
-          <View style={z.timerCard}>
-            <Ionicons name="sunny-outline" size={14} color="#38BDF8" />
-            <Text style={z.timerLabel}>Daily</Text>
-            <Text style={z.timerValue}>{dailyCountdown}</Text>
-          </View>
-          <View style={z.timerCard}>
-            <Ionicons name="calendar-outline" size={14} color="#C084FC" />
-            <Text style={z.timerLabel}>Weekly</Text>
-            <Text style={z.timerValue}>{weeklyCountdown}</Text>
-          </View>
-        </View>
-
-        <View style={z.btnRow}>
-          <Pressable onPress={() => setPlanModalVisible(true)} style={({ pressed }) => [z.planBtn, pressed && { opacity: 0.85 }]} disabled={planning}>
-            <Ionicons name="sparkles" size={18} color={colors.bg.primary} />
-            <Text style={z.planBtnT}>{planning ? 'Planning...' : 'Auto-Plan'}</Text>
-          </Pressable>
-          {tasks.length > 0 && (
-            <Pressable
-              onPress={() => { setRunTitle('Full Route'); setRunZoneFilter('ALL'); }}
-              style={({ pressed }) => [z.runAllBtn, pressed && { opacity: 0.85 }]}
-            >
-              <Ionicons name="map" size={18} color={colors.gold.primary} />
-              <Text style={z.runAllBtnT}>Run All</Text>
-            </Pressable>
-          )}
-        </View>
-
-        {/* Action buttons row: hide completed + reset buttons */}
-        {tasks.length > 0 && (
-          <View style={z.actionRow}>
-            <Pressable onPress={() => setHideCompleted(h => !h)} style={[z.actionChip, hideCompleted && z.actionChipActive]}>
-              <Ionicons name={hideCompleted ? 'eye-off-outline' : 'eye-outline'} size={14} color={hideCompleted ? colors.gold.primary : colors.text.tertiary} />
-              <Text style={[z.actionChipT, hideCompleted && z.actionChipTActive]}>
-                {hideCompleted ? 'Show Done' : 'Hide Done'}
-              </Text>
-            </Pressable>
-            <Pressable onPress={() => handleReset('dungeons', 'Dungeons')} style={z.actionChip}>
-              <Ionicons name="key-outline" size={14} color="#38BDF8" />
-              <Text style={z.actionChipT}>Reset Dungeons</Text>
-            </Pressable>
-            <Pressable onPress={() => handleReset('raids', 'Raids')} style={z.actionChip}>
-              <Ionicons name="skull-outline" size={14} color="#C084FC" />
-              <Text style={z.actionChipT}>Reset Raids</Text>
-            </Pressable>
-            <Pressable onPress={() => handleReset('all', 'All Tasks')} style={z.actionChip}>
-              <Ionicons name="refresh-outline" size={14} color={colors.fire.dim} />
-              <Text style={z.actionChipT}>Reset All</Text>
-            </Pressable>
-          </View>
-        )}
-
-        <Card variant="gold" style={z.oCard}>
-          <View style={z.oRow}>
-            <View style={z.oStat}><Text style={z.oNum}>{routes.length}</Text><Text style={z.oLabel}>ROUTES</Text></View>
-            <View style={z.oDiv}/>
-            <View style={z.oStat}><Text style={z.oNum}>{totalD}/{totalT}</Text><Text style={z.oLabel}>DONE</Text></View>
-            <View style={z.oDiv}/>
-            <View style={z.oStat}><Text style={z.oNum}>{totalT > 0 ? Math.round(totalD/totalT*100) : 0}%</Text><Text style={z.oLabel}>PROGRESS</Text></View>
-          </View>
-        </Card>
-
-        {displayRoutes.length === 0 && !loading ? (
-          <View style={z.empty}>
-            <Ionicons name="map-outline" size={48} color={colors.text.tertiary}/>
-            <Text style={z.emptyT}>{hideCompleted && routes.length > 0 ? 'All routes complete!' : 'No routes yet'}</Text>
-            <Text style={z.emptyS}>
-              {hideCompleted && routes.length > 0
-                ? 'All your farm routes are done. Toggle "Show Done" to see them, or wait for reset.'
-                : 'Tap "Auto-Plan" to generate a geographically-ordered farm route'}
+        ListHeaderComponent={
+          <View style={s.header}>
+            <Text style={s.title}>Farm Planner</Text>
+            <Text style={s.sub}>
+              {selectedChar ? `Planning for ${selectedChar.display.split('-')[0]}` : 'Build your weekly mount farm route'}
             </Text>
-          </View>
-        ) : (
-          <View style={z.rl}>
-            {displayRoutes.map(r => {
-              const pct = Math.round(r.completed / r.tasks.length * 100);
-              const done = pct === 100;
-              const note = ZONE_NOTE.get(r.zone);
-              return (
-                <View key={r.zone}>
-                  <Card variant={done ? 'success' : 'default'} onPress={() => { setRunTitle(r.zone); setRunZoneFilter(r.zone); }}>
-                    <View style={z.rc}>
-                      <Ionicons name={done ? 'checkmark-circle' : 'navigate-circle-outline'} size={28} color={done ? colors.fel.primary : colors.gold.primary} />
-                      <View style={z.rInfo}>
-                        <Text style={z.rZone}>{r.zone}</Text>
-                        {r.expansion && <Text style={z.rExp}>{r.expansion}</Text>}
-                        {note && <Text style={z.rNote} numberOfLines={1}>{note}</Text>}
-                        <Text style={z.rMeta}>{r.tasks.length} mount{r.tasks.length !== 1 ? 's' : ''} — {r.completed} done</Text>
-                        <View style={z.pBar}><View style={[z.pFill, {width:`${pct}%`, backgroundColor: done ? colors.fel.primary : colors.gold.primary}]}/></View>
-                      </View>
-                      <Text style={[z.rPct, done && {color:colors.fel.primary}]}>{pct}%</Text>
-                      <Pressable onPress={() => deleteRoute(r)} hitSlop={12} style={z.trashBtn}>
-                        <Ionicons name="trash-outline" size={16} color={colors.fire.dim}/>
-                      </Pressable>
-                    </View>
-                  </Card>
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
 
-      {/* ── Auto-plan filter modal ── */}
-      <Modal visible={planModalVisible} animationType="slide" transparent onRequestClose={() => setPlanModalVisible(false)}>
-        <View style={z.modalBd}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setPlanModalVisible(false)} />
-          <View style={z.modalSheet}>
-            <View style={z.modalH}/>
-            <View style={z.modalHdr}>
-              <Text style={z.modalTitle}>Plan Farm Route</Text>
-              <Pressable onPress={() => setPlanModalVisible(false)} style={z.modalClose}>
-                <Ionicons name="close" size={20} color={colors.text.secondary}/>
+            {/* Reset timers */}
+            <View style={s.timerRow}>
+              <View style={s.timerCard}>
+                <Ionicons name="sunny-outline" size={14} color="#38BDF8" />
+                <Text style={s.timerLabel}>Daily</Text>
+                <Text style={s.timerVal}>{daily}</Text>
+              </View>
+              <View style={s.timerCard}>
+                <Ionicons name="calendar-outline" size={14} color="#C084FC" />
+                <Text style={s.timerLabel}>Weekly</Text>
+                <Text style={s.timerVal}>{weekly}</Text>
+              </View>
+            </View>
+
+            {/* Progress card */}
+            <Card variant={allDone ? 'success' : 'gold'} style={s.progCard}>
+              <View style={s.progRow}>
+                <View style={s.progStat}>
+                  <Text style={s.progNum}>{dailyDone}/{dailyT.length}</Text>
+                  <Text style={s.progLabel}>DAILY</Text>
+                </View>
+                <View style={s.progDiv} />
+                <View style={s.progStat}>
+                  <Text style={s.progNum}>{weeklyDone}/{weeklyT.length}</Text>
+                  <Text style={s.progLabel}>WEEKLY</Text>
+                </View>
+                <View style={s.progDiv} />
+                <View style={s.progStat}>
+                  <Text style={[s.progNum, allDone && { color: colors.fel.primary }]}>{pct}%</Text>
+                  <Text style={s.progLabel}>TOTAL</Text>
+                </View>
+              </View>
+              {totalT > 0 && (
+                <View style={s.progBarOuter}>
+                  <View style={[s.progBarFill, { width: `${pct}%`, backgroundColor: allDone ? colors.fel.primary : colors.gold.primary }]} />
+                </View>
+              )}
+              {allDone && totalT > 0 && (
+                <View style={s.celebRow}>
+                  <Ionicons name="trophy" size={16} color="#F5B800" />
+                  <Text style={s.celebText}>All done! Next reset: Daily {daily} · Weekly {weekly}</Text>
+                </View>
+              )}
+            </Card>
+
+            {/* Action buttons */}
+            <View style={s.btnRow}>
+              <Pressable onPress={() => setPlanModalVisible(true)} style={({ pressed }) => [s.btn, s.btnGold, pressed && s.btnPressed]} disabled={planning}>
+                <Ionicons name="sparkles" size={16} color={colors.bg.primary} />
+                <Text style={s.btnGoldT}>{planning ? 'Planning...' : 'Auto-Plan'}</Text>
+              </Pressable>
+              <Pressable onPress={() => setShowAdd(true)} style={({ pressed }) => [s.btn, s.btnOutline, pressed && s.btnPressed]}>
+                <Ionicons name="add" size={16} color={colors.gold.primary} />
+                <Text style={s.btnOutlineT}>Add Task</Text>
               </Pressable>
             </View>
-            <Text style={z.modalSub}>
-              {selectedChar ? `Missing mounts for ${selectedChar.display.split('-')[0]}` : 'Select what to farm'}
+
+            {/* Filter / reset chips */}
+            {totalT > 0 && (
+              <View style={s.chipRow}>
+                <Pressable onPress={() => setHideCompleted(h => !h)} style={[s.chip, hideCompleted && s.chipActive]}>
+                  <Ionicons name={hideCompleted ? 'eye-off-outline' : 'eye-outline'} size={13} color={hideCompleted ? colors.gold.primary : colors.text.tertiary} />
+                  <Text style={[s.chipT, hideCompleted && s.chipTActive]}>{hideCompleted ? 'Show Done' : 'Hide Done'}</Text>
+                </Pressable>
+                <Pressable onPress={() => handleReset('dungeons', 'Dungeons')} style={s.chip}>
+                  <Ionicons name="key-outline" size={13} color="#38BDF8" />
+                  <Text style={s.chipT}>Reset D</Text>
+                </Pressable>
+                <Pressable onPress={() => handleReset('raids', 'Raids')} style={s.chip}>
+                  <Ionicons name="skull-outline" size={13} color="#C084FC" />
+                  <Text style={s.chipT}>Reset R</Text>
+                </Pressable>
+                <Pressable onPress={() => handleReset('all', 'All Tasks')} style={s.chip}>
+                  <Ionicons name="refresh-outline" size={13} color={colors.fire.dim} />
+                  <Text style={s.chipT}>Reset All</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Collapsed expansion headers (shown as collapsed bars) */}
+            {sections.filter(sec => collapsedExps.has(sec.title)).map(sec => (
+              <Pressable key={sec.title} onPress={() => toggleCollapse(sec.title)} style={s.collapsedBar}>
+                <View style={[s.expDot, { backgroundColor: sec.color }]} />
+                <Text style={[s.collapsedTitle, { color: sec.color }]}>{sec.title}</Text>
+                <Text style={s.collapsedCount}>{sec.completed}/{sec.total}</Text>
+                {sec.completed === sec.total && sec.total > 0 && <Ionicons name="checkmark-circle" size={14} color={colors.fel.primary} />}
+                <Ionicons name="chevron-down" size={14} color={colors.text.tertiary} />
+              </Pressable>
+            ))}
+          </View>
+        }
+
+        renderSectionHeader={({ section }) => {
+          lastZone = '';
+          const sec = section as unknown as Section;
+          return (
+            <Pressable onPress={() => toggleCollapse(sec.title)} style={s.sectionHeader}>
+              <View style={[s.expDot, { backgroundColor: sec.color }]} />
+              <Text style={[s.sectionTitle, { color: sec.color }]}>{sec.title}</Text>
+              <Text style={s.sectionCount}>{sec.completed}/{sec.total}</Text>
+              {sec.completed === sec.total && sec.total > 0 && <Ionicons name="checkmark-circle" size={14} color={colors.fel.primary} />}
+              <Ionicons name="chevron-up" size={14} color={colors.text.tertiary} />
+            </Pressable>
+          );
+        }}
+
+        renderItem={({ item }) => {
+          const { task, zone, zoneNote, zoneType } = item;
+          const done = task.completed;
+          const showZoneHeader = zone !== lastZone;
+          lastZone = zone;
+          const typeMeta = TYPE_META[zoneType || ''] || TYPE_META[task.source_type || ''];
+          return (
+            <View>
+              {showZoneHeader && (
+                <View style={s.zoneRow}>
+                  {typeMeta && <Ionicons name={typeMeta.icon as any} size={12} color={typeMeta.color} />}
+                  <Text style={s.zoneName}>{zone}</Text>
+                  {zoneNote && <Text style={s.zoneNote} numberOfLines={1}>{zoneNote}</Text>}
+                </View>
+              )}
+              <Pressable
+                style={[s.taskRow, done && s.taskRowDone]}
+                onPress={() => toggle(task.id)}
+                onLongPress={() => Alert.alert('Remove', `Remove "${task.title}"?`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Remove', style: 'destructive', onPress: () => deleteTask(task.id) },
+                ])}
+              >
+                <View style={[s.cb, done && s.cbDone]}>
+                  {done && <Ionicons name="checkmark" size={11} color={colors.bg.primary} />}
+                </View>
+                <Text style={[s.taskName, done && s.taskNameDone]} numberOfLines={1}>{task.title}</Text>
+                {task.reset_type !== 'none' && (
+                  <View style={[s.resetBadge, task.reset_type === 'weekly' ? s.resetW : s.resetD]}>
+                    <Text style={[s.resetBadgeT, { color: task.reset_type === 'weekly' ? '#C084FC' : '#38BDF8' }]}>
+                      {task.reset_type === 'weekly' ? 'W' : 'D'}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
+          );
+        }}
+
+        renderSectionFooter={() => <View style={s.sectionFooter} />}
+
+        ListEmptyComponent={!loading ? (
+          <View style={s.empty}>
+            <Ionicons name="map-outline" size={48} color={colors.text.tertiary} />
+            <Text style={s.emptyT}>
+              {hideCompleted && totalT > 0 ? 'All tasks complete!' : 'No farm tasks yet'}
             </Text>
-            <Text style={z.modalLabel}>INCLUDE SOURCE TYPES</Text>
-            <View style={z.typeGrid}>
+            <Text style={s.emptyS}>
+              {hideCompleted && totalT > 0
+                ? 'Toggle "Show Done" or wait for reset.'
+                : 'Tap "Auto-Plan" to generate an optimized route, or "Add Task" to add one manually.'}
+            </Text>
+          </View>
+        ) : null}
+      />
+
+      {/* ── Auto-plan modal ── */}
+      <Modal visible={planModalVisible} animationType="slide" transparent onRequestClose={() => setPlanModalVisible(false)}>
+        <View style={s.modalBd}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setPlanModalVisible(false)} />
+          <View style={s.modalSheet}>
+            <View style={s.modalHandle} />
+            <View style={s.modalHdr}>
+              <Text style={s.modalTitle}>Auto-Plan Route</Text>
+              <Pressable onPress={() => setPlanModalVisible(false)} style={s.modalClose}>
+                <Ionicons name="close" size={20} color={colors.text.secondary} />
+              </Pressable>
+            </View>
+            <Text style={s.modalSub}>
+              {selectedChar ? `Missing mounts for ${selectedChar.display.split('-')[0]}` : 'Select which source types to farm'}
+            </Text>
+            <Text style={s.modalLabel}>INCLUDE SOURCE TYPES</Text>
+            <View style={s.typeGrid}>
               {ALL_SOURCE_TYPES.map(type => {
-                const info = typeLabels[type];
+                const meta = TYPE_META[type];
                 const on = selectedTypes.has(type);
                 return (
-                  <Pressable key={type} onPress={() => toggleType(type)} style={[z.typeChip, on && { borderColor: info.color + '80', backgroundColor: info.color + '18' }]}>
-                    <Ionicons name={info.icon as any} size={14} color={on ? info.color : colors.text.tertiary}/>
-                    <Text style={[z.typeChipT, on && { color: info.color }]}>{info.label}</Text>
+                  <Pressable key={type} onPress={() => setSelectedTypes(prev => { const n = new Set(prev); if (n.has(type)) n.delete(type); else n.add(type); return n; })}
+                    style={[s.typeChip, on && { borderColor: meta.color + '80', backgroundColor: meta.color + '18' }]}>
+                    <Ionicons name={meta.icon as any} size={14} color={on ? meta.color : colors.text.tertiary} />
+                    <Text style={[s.typeChipT, on && { color: meta.color }]}>{type.replace('_', ' ')}</Text>
                   </Pressable>
                 );
               })}
             </View>
-            <Text style={z.modalLabel}>MAX NEW TASKS</Text>
-            <View style={z.maxRow}>
+            <Text style={s.modalLabel}>MAX NEW TASKS</Text>
+            <View style={s.maxRow}>
               {[10, 20, 30, 50].map(n => (
-                <Pressable key={n} onPress={() => setMaxTasks(n)} style={[z.maxChip, maxTasks === n && z.maxChipA]}>
-                  <Text style={[z.maxChipT, maxTasks === n && z.maxChipTA]}>{n}</Text>
+                <Pressable key={n} onPress={() => setMaxTasks(n)} style={[s.maxChip, maxTasks === n && s.maxChipA]}>
+                  <Text style={[s.maxChipT, maxTasks === n && s.maxChipTA]}>{n}</Text>
                 </Pressable>
               ))}
             </View>
-            <View style={z.previewRow}>
-              <Ionicons name="sparkles-outline" size={16} color={colors.gold.dim}/>
-              <Text style={z.previewT}>{Math.min(planPreviewCount, maxTasks)} mounts will be added</Text>
+            <View style={s.previewRow}>
+              <Ionicons name="sparkles-outline" size={16} color={colors.gold.dim} />
+              <Text style={s.previewT}>{Math.min(planPreviewCount, maxTasks)} mounts will be added</Text>
             </View>
-            <Pressable onPress={executePlan} style={[z.goBtn, (planPreviewCount === 0 || selectedTypes.size === 0) && {opacity:0.4}]} disabled={planPreviewCount === 0 || selectedTypes.size === 0}>
-              <Ionicons name="sparkles" size={18} color={colors.bg.primary}/>
-              <Text style={z.goBtnT}>Generate Route</Text>
+            <Pressable onPress={executePlan} style={[s.goBtn, (planPreviewCount === 0 || selectedTypes.size === 0) && { opacity: 0.4 }]} disabled={planPreviewCount === 0 || selectedTypes.size === 0}>
+              <Ionicons name="sparkles" size={18} color={colors.bg.primary} />
+              <Text style={s.goBtnT}>Generate Route</Text>
             </Pressable>
           </View>
         </View>
       </Modal>
 
-      {/* ── Step-by-step run planner (SimpleArmory style) ── */}
-      <Modal visible={runZoneFilter !== null} animationType="slide" onRequestClose={() => setRunZoneFilter(null)}>
-        <SafeAreaView style={z.runSafe} edges={['top', 'bottom']}>
-          {/* Header */}
-          <View style={z.runHeader}>
-            <View style={z.runHeaderLeft}>
-              <Text style={z.runTitle} numberOfLines={1}>{runTitle}</Text>
-              <Text style={z.runProg}>
-                {allRunDoneCount} / {allFarmStepsInRun.length} done
-                {hideCompleted && activeFarmSteps.length < allFarmStepsInRun.length
-                  ? ` (showing ${activeFarmSteps.length})`
-                  : ''}
-              </Text>
+      {/* ── Add task modal ── */}
+      <Modal visible={showAdd} animationType="slide" transparent onRequestClose={() => setShowAdd(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.modalBd}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowAdd(false)} />
+          <View style={s.modalSheet}>
+            <View style={s.modalHandle} />
+            <Text style={s.modalTitle}>Add Farm Task</Text>
+            <View style={s.field}><Text style={s.fieldLabel}>TASK NAME</Text><TextInput style={s.input} value={nTitle} onChangeText={setNTitle} placeholder="e.g. Invincible" placeholderTextColor={colors.text.tertiary} autoFocus /></View>
+            <View style={s.field}><Text style={s.fieldLabel}>SOURCE TYPE</Text><TextInput style={s.input} value={nSrc} onChangeText={setNSrc} placeholder="raid, dungeon, world_boss" placeholderTextColor={colors.text.tertiary} /></View>
+            <View style={s.field}><Text style={s.fieldLabel}>ZONE</Text><TextInput style={s.input} value={nZone} onChangeText={setNZone} placeholder="e.g. Icecrown Citadel" placeholderTextColor={colors.text.tertiary} /></View>
+            <View style={s.field}>
+              <Text style={s.fieldLabel}>RESET</Text>
+              <View style={s.resetRow}>
+                {(['daily', 'weekly', 'none'] as const).map(r => (
+                  <Pressable key={r} onPress={() => setNReset(r)} style={[s.resetOpt, nReset === r && s.resetOptA]}>
+                    <Text style={[s.resetOptT, nReset === r && s.resetOptTA]}>{r === 'none' ? 'One-time' : r[0].toUpperCase() + r.slice(1)}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
-            <View style={z.runHeaderRight}>
-              <Pressable onPress={() => setHideCompleted(h => !h)} style={z.runToggle}>
-                <Ionicons name={hideCompleted ? 'eye-off' : 'eye'} size={16} color={hideCompleted ? colors.gold.primary : colors.text.tertiary} />
-              </Pressable>
-              <Pressable onPress={() => setRunZoneFilter(null)} style={z.runClose}>
-                <Ionicons name="close" size={22} color={colors.text.primary}/>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Progress bar */}
-          {allFarmStepsInRun.length > 0 && (
-            <View style={z.runProgBar}>
-              <View style={[z.runProgFill, { width: `${Math.round(allRunDoneCount / allFarmStepsInRun.length * 100)}%` }]} />
-            </View>
-          )}
-
-          {/* Reset timer bar in run mode */}
-          <View style={z.runTimerBar}>
-            <View style={z.runTimerItem}>
-              <Ionicons name="sunny-outline" size={12} color="#38BDF8" />
-              <Text style={z.runTimerT}>Daily: {dailyCountdown}</Text>
-            </View>
-            <View style={z.runTimerItem}>
-              <Ionicons name="calendar-outline" size={12} color="#C084FC" />
-              <Text style={z.runTimerT}>Weekly: {weeklyCountdown}</Text>
-            </View>
-            <Pressable onPress={() => handleReset('all', 'All Tasks')} style={z.runResetBtn}>
-              <Ionicons name="refresh" size={12} color={colors.fire.dim} />
-              <Text style={z.runResetBtnT}>Reset</Text>
+            <Pressable onPress={addTask} style={[s.goBtn, !nTitle.trim() && { opacity: 0.4 }]} disabled={!nTitle.trim()}>
+              <Ionicons name="add-circle" size={18} color={colors.bg.primary} />
+              <Text style={s.goBtnT}>Add Task</Text>
             </Pressable>
           </View>
-
-          {/* Celebration overlay */}
-          {allDone && (
-            <Animated.View style={[z.celebrationBanner, { opacity: celebrationOpacity, transform: [{ scale: celebrationScale }] }]}>
-              <Ionicons name="trophy" size={32} color="#F5B800" />
-              <Text style={z.celebrationTitle}>Route Complete!</Text>
-              <Text style={z.celebrationSub}>All {allFarmStepsInRun.length} mounts farmed this reset. Check back after reset!</Text>
-              <View style={z.celebrationTimers}>
-                <Text style={z.celebrationTimer}>Daily reset: {dailyCountdown}</Text>
-                <Text style={z.celebrationTimer}>Weekly reset: {weeklyCountdown}</Text>
-              </View>
-            </Animated.View>
-          )}
-
-          {/* Column headers */}
-          {!allDone && (
-            <>
-              <View style={z.tableHeader}>
-                <View style={z.thCheck}/>
-                <View style={z.thNum}><Text style={z.thT}>#</Text></View>
-                <Text style={[z.thT, {flex:1}]}>MOUNT / STEP</Text>
-                <Text style={[z.thT, {width:28}]}></Text>
-                <Text style={[z.thT, {width:72}]}>NOTES</Text>
-              </View>
-
-              {/* Steps list */}
-              <FlatList
-                data={activeSteps}
-                keyExtractor={s => s.id}
-                renderItem={renderStep}
-                contentContainerStyle={z.stepList}
-                ItemSeparatorComponent={() => <View style={z.sep}/>}
-              />
-            </>
-          )}
-        </SafeAreaView>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
 }
 
-const z = StyleSheet.create({
-  safe:{flex:1,backgroundColor:colors.bg.primary},
-  content:{paddingHorizontal:spacing.lg,paddingTop:spacing.md,paddingBottom:100,gap:spacing.md},
-  title:{...typography.display,color:colors.frost.primary},
-  sub:{...typography.caption,color:colors.text.secondary},
-  // Timer row
-  timerRow:{flexDirection:'row',gap:spacing.sm},
-  timerCard:{flex:1,flexDirection:'row',alignItems:'center',gap:spacing.xs,backgroundColor:colors.bg.secondary,borderRadius:radii.md,paddingVertical:spacing.sm,paddingHorizontal:spacing.md,borderWidth:1,borderColor:colors.border.subtle},
-  timerLabel:{fontSize:11,fontWeight:'600',color:colors.text.tertiary},
-  timerValue:{fontSize:12,fontWeight:'700',color:colors.text.primary,marginLeft:'auto'},
-  // Button rows
-  btnRow:{flexDirection:'row',gap:spacing.sm},
-  planBtn:{flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:spacing.sm,backgroundColor:colors.gold.primary,borderRadius:radii.md,paddingVertical:13,...shadows.card},
-  planBtnT:{fontSize:14,fontWeight:'700',color:colors.bg.primary},
-  runAllBtn:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:spacing.sm,paddingHorizontal:spacing.xl,paddingVertical:13,borderRadius:radii.md,borderWidth:1,borderColor:colors.gold.dim,backgroundColor:colors.gold.muted},
-  runAllBtnT:{fontSize:14,fontWeight:'700',color:colors.gold.primary},
-  // Action row (hide completed + resets)
-  actionRow:{flexDirection:'row',flexWrap:'wrap',gap:spacing.xs},
-  actionChip:{flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:spacing.sm,paddingVertical:6,borderRadius:radii.full,borderWidth:1,borderColor:colors.border.default,backgroundColor:colors.bg.tertiary},
-  actionChipActive:{borderColor:colors.gold.dim,backgroundColor:colors.gold.muted},
-  actionChipT:{fontSize:10,fontWeight:'600',color:colors.text.tertiary},
-  actionChipTActive:{color:colors.gold.primary},
-  // Overview card
-  oCard:{padding:spacing.lg},
-  oRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-around'},
-  oStat:{alignItems:'center',gap:4},
-  oNum:{fontSize:18,fontWeight:'700',color:colors.text.primary},
-  oLabel:{...typography.label,fontSize:9},
-  oDiv:{width:1,height:24,backgroundColor:colors.border.default},
-  rl:{gap:spacing.md},
-  rc:{flexDirection:'row',alignItems:'center',gap:spacing.md},
-  rInfo:{flex:1,gap:2},
-  rZone:{...typography.subheading,fontSize:14},
-  rExp:{fontSize:10,color:colors.frost.primary,fontWeight:'600',opacity:0.8},
-  rNote:{fontSize:10,color:colors.text.tertiary,fontStyle:'italic'},
-  rMeta:{fontSize:11,color:colors.text.secondary},
-  pBar:{height:3,backgroundColor:colors.bg.primary,borderRadius:2,marginTop:3,overflow:'hidden'},
-  pFill:{height:3,borderRadius:2},
-  rPct:{...typography.subheading,color:colors.gold.primary,marginRight:spacing.xs},
-  trashBtn:{padding:spacing.xs},
-  empty:{alignItems:'center',paddingVertical:60,gap:spacing.md},
-  emptyT:{...typography.heading,color:colors.text.secondary},
-  emptyS:{...typography.caption,color:colors.text.tertiary,textAlign:'center',paddingHorizontal:spacing.xl},
-  // Auto-plan modal
-  modalBd:{flex:1,justifyContent:'flex-end',backgroundColor:'rgba(5,7,14,0.6)'},
-  modalSheet:{backgroundColor:colors.bg.secondary,borderTopLeftRadius:radii.xl,borderTopRightRadius:radii.xl,paddingHorizontal:spacing.xl,paddingBottom:50,borderTopWidth:1,borderColor:colors.border.subtle},
-  modalH:{width:32,height:4,borderRadius:2,backgroundColor:colors.border.subtle,alignSelf:'center',marginTop:spacing.md,marginBottom:spacing.lg},
-  modalHdr:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:spacing.xs},
-  modalTitle:{...typography.heading,color:colors.gold.primary},
-  modalClose:{backgroundColor:colors.bg.elevated,borderRadius:radii.full,padding:spacing.sm},
-  modalSub:{...typography.caption,color:colors.text.tertiary,marginBottom:spacing.lg},
-  modalLabel:{...typography.label,marginBottom:spacing.sm,marginTop:spacing.md},
-  typeGrid:{flexDirection:'row',flexWrap:'wrap',gap:spacing.sm},
-  typeChip:{flexDirection:'row',alignItems:'center',gap:spacing.xs,paddingHorizontal:spacing.md,paddingVertical:spacing.sm,borderRadius:radii.full,borderWidth:1,borderColor:colors.border.default,backgroundColor:colors.bg.tertiary},
-  typeChipT:{fontSize:12,fontWeight:'600',color:colors.text.tertiary},
-  maxRow:{flexDirection:'row',gap:spacing.sm},
-  maxChip:{flex:1,alignItems:'center',paddingVertical:spacing.md,borderRadius:radii.md,backgroundColor:colors.bg.tertiary,borderWidth:1,borderColor:colors.border.default},
-  maxChipA:{borderColor:colors.gold.dim,backgroundColor:colors.gold.muted},
-  maxChipT:{fontSize:14,fontWeight:'600',color:colors.text.secondary},
-  maxChipTA:{color:colors.gold.primary},
-  previewRow:{flexDirection:'row',alignItems:'center',gap:spacing.sm,paddingVertical:spacing.md},
-  previewT:{...typography.caption,color:colors.text.secondary},
-  goBtn:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:spacing.sm,backgroundColor:colors.gold.primary,borderRadius:radii.md,paddingVertical:14,marginTop:spacing.sm,...shadows.card},
-  goBtnT:{fontSize:15,fontWeight:'700',color:colors.bg.primary},
-  // Run planner (full screen)
-  runSafe:{flex:1,backgroundColor:colors.bg.primary},
-  runHeader:{flexDirection:'row',alignItems:'center',paddingHorizontal:spacing.lg,paddingVertical:spacing.md,borderBottomWidth:1,borderBottomColor:colors.border.subtle},
-  runHeaderLeft:{flex:1,gap:2},
-  runHeaderRight:{flexDirection:'row',alignItems:'center',gap:spacing.sm},
-  runTitle:{...typography.heading,color:colors.gold.primary,fontSize:16},
-  runProg:{...typography.caption,color:colors.text.tertiary},
-  runToggle:{width:36,height:36,borderRadius:18,backgroundColor:colors.bg.secondary,alignItems:'center',justifyContent:'center'},
-  runClose:{width:36,height:36,borderRadius:18,backgroundColor:colors.bg.secondary,alignItems:'center',justifyContent:'center'},
-  runProgBar:{height:3,backgroundColor:colors.bg.secondary,marginHorizontal:0},
-  runProgFill:{height:3,backgroundColor:colors.gold.primary,borderRadius:0},
-  // Timer bar inside run modal
-  runTimerBar:{flexDirection:'row',alignItems:'center',paddingHorizontal:spacing.lg,paddingVertical:spacing.sm,backgroundColor:colors.bg.secondary,borderBottomWidth:1,borderBottomColor:colors.border.subtle,gap:spacing.md},
-  runTimerItem:{flexDirection:'row',alignItems:'center',gap:4},
-  runTimerT:{fontSize:10,fontWeight:'600',color:colors.text.tertiary},
-  runResetBtn:{flexDirection:'row',alignItems:'center',gap:4,marginLeft:'auto',paddingHorizontal:spacing.sm,paddingVertical:4,borderRadius:radii.sm,borderWidth:1,borderColor:colors.border.default},
-  runResetBtnT:{fontSize:10,fontWeight:'600',color:colors.fire.dim},
-  // Celebration
-  celebrationBanner:{alignItems:'center',justifyContent:'center',paddingVertical:60,paddingHorizontal:spacing.xl,gap:spacing.md},
-  celebrationTitle:{fontSize:24,fontWeight:'800',color:'#F5B800',textAlign:'center'},
-  celebrationSub:{...typography.caption,color:colors.text.secondary,textAlign:'center'},
-  celebrationTimers:{flexDirection:'row',gap:spacing.xl,marginTop:spacing.md},
-  celebrationTimer:{fontSize:12,fontWeight:'600',color:colors.text.tertiary},
-  // Table
-  tableHeader:{flexDirection:'row',alignItems:'center',paddingHorizontal:spacing.lg,paddingVertical:spacing.sm,backgroundColor:colors.bg.secondary,borderBottomWidth:1,borderBottomColor:colors.border.subtle},
-  thCheck:{width:32},
-  thNum:{width:28},
-  thT:{...typography.label,fontSize:9,color:colors.text.tertiary},
-  stepList:{paddingBottom:40},
-  sep:{height:1,backgroundColor:colors.border.subtle,marginLeft:spacing.lg},
-  // Step rows
-  portalRow:{flexDirection:'row',alignItems:'center',gap:spacing.md,paddingHorizontal:spacing.lg,paddingVertical:spacing.md,backgroundColor:colors.frost.primary+'12'},
-  portalIcon:{width:28,height:28,borderRadius:14,backgroundColor:colors.frost.primary+'25',alignItems:'center',justifyContent:'center'},
-  travelMid:{flex:1,gap:1},
-  portalLabel:{fontSize:13,fontWeight:'700',color:colors.frost.primary},
-  travelExp:{fontSize:10,color:colors.frost.dim},
-  flyRow:{flexDirection:'row',alignItems:'center',gap:spacing.md,paddingHorizontal:spacing.lg,paddingVertical:10,backgroundColor:colors.bg.secondary+'80'},
-  flyIcon:{width:28,alignItems:'center'},
-  flyLabel:{fontSize:12,color:colors.text.tertiary,fontStyle:'italic'},
-  farmRow:{flexDirection:'row',alignItems:'center',gap:spacing.sm,paddingHorizontal:spacing.lg,paddingVertical:spacing.md,backgroundColor:colors.bg.primary},
-  farmRowDone:{backgroundColor:colors.fel.primary+'08'},
-  checkbox:{width:24,height:24,borderRadius:12,borderWidth:1.5,borderColor:colors.border.default,alignItems:'center',justifyContent:'center'},
-  checkboxDone:{backgroundColor:colors.fel.primary,borderColor:colors.fel.primary},
-  stepNum:{width:24,fontSize:11,fontWeight:'700',color:colors.text.tertiary,textAlign:'center'},
-  farmMid:{flex:1,gap:1,marginHorizontal:spacing.xs},
-  farmName:{fontSize:13,fontWeight:'600',color:colors.text.primary},
-  farmNameDone:{color:colors.text.tertiary,textDecorationLine:'line-through'},
-  bossName:{fontSize:10,color:colors.text.tertiary},
-  // Reset type badges
-  resetBadge:{width:20,height:20,borderRadius:10,alignItems:'center',justifyContent:'center'},
-  resetDaily:{backgroundColor:'#38BDF8'+'20'},
-  resetWeekly:{backgroundColor:'#C084FC'+'20'},
-  resetBadgeT:{fontSize:9,fontWeight:'800',color:colors.text.tertiary},
-  notesBadge:{paddingHorizontal:spacing.sm,paddingVertical:2,borderRadius:radii.sm,backgroundColor:colors.bg.secondary,borderWidth:1,borderColor:colors.border.subtle,maxWidth:80},
-  notesBadgeT:{fontSize:9,fontWeight:'700',color:colors.text.tertiary,textAlign:'center'},
+// ═══════════════════════════════════════════════════════════════════════════════
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg.primary },
+  list: { paddingBottom: 100 },
+  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm, gap: spacing.md },
+  title: { ...typography.display, color: colors.frost.primary },
+  sub: { ...typography.caption, color: colors.text.secondary, marginTop: -spacing.sm },
+  // Timers
+  timerRow: { flexDirection: 'row', gap: spacing.sm },
+  timerCard: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.bg.secondary, borderRadius: radii.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border.subtle },
+  timerLabel: { fontSize: 11, fontWeight: '600', color: colors.text.tertiary },
+  timerVal: { fontSize: 13, fontWeight: '700', color: colors.text.primary, marginLeft: 'auto' },
+  // Progress card
+  progCard: { padding: spacing.lg },
+  progRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  progStat: { alignItems: 'center', gap: 3 },
+  progNum: { fontSize: 18, fontWeight: '700', color: colors.text.primary },
+  progLabel: { ...typography.label, fontSize: 9 },
+  progDiv: { width: 1, height: 24, backgroundColor: colors.border.default },
+  progBarOuter: { height: 4, backgroundColor: colors.bg.primary, borderRadius: 2, marginTop: spacing.md, overflow: 'hidden' },
+  progBarFill: { height: 4, borderRadius: 2 },
+  celebRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border.default },
+  celebText: { ...typography.caption, color: colors.gold.dim, flex: 1 },
+  // Buttons
+  btnRow: { flexDirection: 'row', gap: spacing.sm },
+  btn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: 12, borderRadius: radii.md },
+  btnGold: { backgroundColor: colors.gold.primary, ...shadows.card },
+  btnGoldT: { fontSize: 13, fontWeight: '700', color: colors.bg.primary },
+  btnOutline: { borderWidth: 1, borderColor: colors.gold.dim, backgroundColor: colors.gold.muted },
+  btnOutlineT: { fontSize: 13, fontWeight: '700', color: colors.gold.primary },
+  btnPressed: { opacity: 0.85 },
+  // Chips
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radii.full, borderWidth: 1, borderColor: colors.border.default, backgroundColor: colors.bg.tertiary },
+  chipActive: { borderColor: colors.gold.dim, backgroundColor: colors.gold.muted },
+  chipT: { fontSize: 10, fontWeight: '600', color: colors.text.tertiary },
+  chipTActive: { color: colors.gold.primary },
+  // Collapsed expansion bar
+  collapsedBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 10, backgroundColor: colors.bg.secondary, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.border.subtle },
+  collapsedTitle: { fontWeight: '700', fontSize: 13, flex: 1 },
+  collapsedCount: { fontSize: 12, fontWeight: '600', color: colors.text.tertiary },
+  // Section headers (expansion)
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 12, backgroundColor: colors.bg.secondary, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, marginTop: spacing.sm },
+  expDot: { width: 8, height: 8, borderRadius: 4 },
+  sectionTitle: { fontWeight: '700', fontSize: 14, flex: 1 },
+  sectionCount: { fontSize: 12, fontWeight: '600', color: colors.text.tertiary },
+  sectionFooter: { height: 2 },
+  // Zone sub-header
+  zoneRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.lg, paddingVertical: 6, backgroundColor: colors.bg.primary, borderBottomWidth: 1, borderBottomColor: colors.border.subtle },
+  zoneName: { fontSize: 11, fontWeight: '700', color: colors.text.secondary },
+  zoneNote: { flex: 1, fontSize: 10, color: colors.text.tertiary, fontStyle: 'italic', textAlign: 'right' },
+  // Task rows
+  taskRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 11, backgroundColor: colors.bg.primary, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border.subtle },
+  taskRowDone: { backgroundColor: colors.fel.primary + '06' },
+  cb: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: colors.border.default, alignItems: 'center', justifyContent: 'center' },
+  cbDone: { backgroundColor: colors.fel.primary, borderColor: colors.fel.primary },
+  taskName: { flex: 1, fontSize: 13, fontWeight: '500', color: colors.text.primary },
+  taskNameDone: { color: colors.text.tertiary, textDecorationLine: 'line-through' },
+  resetBadge: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  resetW: { backgroundColor: '#C084FC' + '18' },
+  resetD: { backgroundColor: '#38BDF8' + '18' },
+  resetBadgeT: { fontSize: 9, fontWeight: '800' },
+  // Empty
+  empty: { alignItems: 'center', paddingVertical: 60, gap: spacing.md, paddingHorizontal: spacing.xl },
+  emptyT: { ...typography.heading, color: colors.text.secondary },
+  emptyS: { ...typography.caption, color: colors.text.tertiary, textAlign: 'center', lineHeight: 18 },
+  // Modals
+  modalBd: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(5,7,14,0.6)' },
+  modalSheet: { backgroundColor: colors.bg.secondary, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, paddingHorizontal: spacing.xl, paddingBottom: 50, borderTopWidth: 1, borderColor: colors.border.subtle, gap: spacing.md },
+  modalHandle: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.border.subtle, alignSelf: 'center', marginTop: spacing.md },
+  modalHdr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle: { ...typography.heading, color: colors.gold.primary },
+  modalClose: { backgroundColor: colors.bg.elevated, borderRadius: radii.full, padding: spacing.sm },
+  modalSub: { ...typography.caption, color: colors.text.tertiary, marginTop: -spacing.sm },
+  modalLabel: { ...typography.label, marginTop: spacing.sm },
+  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  typeChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radii.full, borderWidth: 1, borderColor: colors.border.default, backgroundColor: colors.bg.tertiary },
+  typeChipT: { fontSize: 12, fontWeight: '600', color: colors.text.tertiary, textTransform: 'capitalize' },
+  maxRow: { flexDirection: 'row', gap: spacing.sm },
+  maxChip: { flex: 1, alignItems: 'center', paddingVertical: spacing.md, borderRadius: radii.md, backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default },
+  maxChipA: { borderColor: colors.gold.dim, backgroundColor: colors.gold.muted },
+  maxChipT: { fontSize: 14, fontWeight: '600', color: colors.text.secondary },
+  maxChipTA: { color: colors.gold.primary },
+  previewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  previewT: { ...typography.caption, color: colors.text.secondary },
+  goBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.gold.primary, borderRadius: radii.md, paddingVertical: 14, ...shadows.card },
+  goBtnT: { fontSize: 15, fontWeight: '700', color: colors.bg.primary },
+  // Add task modal fields
+  field: { gap: spacing.xs },
+  fieldLabel: { ...typography.label },
+  input: { backgroundColor: colors.bg.input, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, paddingHorizontal: spacing.md, paddingVertical: spacing.md, fontSize: 14, color: colors.text.primary },
+  resetRow: { flexDirection: 'row', gap: spacing.sm },
+  resetOpt: { flex: 1, alignItems: 'center', paddingVertical: spacing.md, borderRadius: radii.md, backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default },
+  resetOptA: { borderColor: colors.gold.dim, backgroundColor: colors.gold.muted },
+  resetOptT: { fontSize: 11, fontWeight: '600', color: colors.text.secondary },
+  resetOptTA: { color: colors.gold.primary },
 });

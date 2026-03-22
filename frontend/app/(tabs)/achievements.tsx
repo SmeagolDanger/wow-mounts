@@ -143,8 +143,6 @@ export default function AchievementsScreen() {
           const isExpanded = expandedCat === cat.id;
           const catColor = CATEGORY_COLORS[cat.name] || colors.text.secondary;
           const catIcon = CATEGORY_ICONS[cat.name] || 'ellipse-outline';
-          const pct = cat.quantity > 0 ? Math.round((cat.quantity / Math.max(cat.quantity, 1)) * 100) : 0;
-
           return (
             <View style={z.catCard}>
               <Pressable onPress={() => setExpandedCat(isExpanded ? null : cat.id)} style={z.catHeader}>
@@ -153,9 +151,6 @@ export default function AchievementsScreen() {
                 </View>
                 <View style={z.catInfo}>
                   <Text style={z.catName}>{cat.name}</Text>
-                  <View style={z.catBar}>
-                    <View style={[z.catBarFill, { width: '100%', backgroundColor: catColor + '30' }]} />
-                  </View>
                 </View>
                 <View style={z.catRight}>
                   <Text style={[z.catCount, { color: catColor }]}>{cat.quantity}</Text>
@@ -209,8 +204,6 @@ const z = StyleSheet.create({
   catIcon: { width: 32, height: 32, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   catInfo: { flex: 1, gap: 4 },
   catName: { ...typography.subheading, fontSize: 13 },
-  catBar: { height: 3, borderRadius: 2, backgroundColor: colors.bg.tertiary, overflow: 'hidden' },
-  catBarFill: { height: '100%', borderRadius: 2 },
   catRight: { alignItems: 'flex-end', gap: 2 },
   catCount: { fontSize: 15, fontWeight: '700' },
   catPoints: { fontSize: 9, color: colors.text.tertiary, fontWeight: '600' },

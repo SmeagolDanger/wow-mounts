@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii } from '../../theme';
 import { Card } from '../../components';
@@ -15,6 +16,7 @@ interface StatRow {
   count: number;
   color: string;
   points?: number;
+  route?: string;
 }
 
 export default function StatsScreen() {
@@ -25,6 +27,7 @@ export default function StatsScreen() {
     collectionSummary, loadingCollected, refreshCollections,
   } = useApp();
   const [refreshing, setRefreshing] = useState(false);
+  const router = useRouter();
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -33,10 +36,10 @@ export default function StatsScreen() {
   }, [refreshCollections]);
 
   const stats: StatRow[] = [
-    { key: 'mounts', label: 'Mounts', icon: 'trophy', count: collectedIds.size, color: colors.gold.primary },
-    { key: 'pets', label: 'Pets', icon: 'paw', count: collectedPetIds.size, color: colors.fel.primary },
+    { key: 'mounts', label: 'Mounts', icon: 'trophy', count: collectedIds.size, color: colors.gold.primary, route: '/' },
+    { key: 'pets', label: 'Battle Pets', icon: 'paw', count: collectedPetIds.size, color: colors.fel.primary, route: '/pets' },
+    { key: 'achievements', label: 'Achievements', icon: 'ribbon', count: achievementCount, color: '#F5B800', points: achievementPoints, route: '/achievements' },
     { key: 'toys', label: 'Toys', icon: 'game-controller', count: collectedToyIds.size, color: colors.frost.primary },
-    { key: 'achievements', label: 'Achievements', icon: 'ribbon', count: achievementCount, color: colors.gold.bright, points: achievementPoints },
     { key: 'titles', label: 'Titles', icon: 'bookmark', count: collectedTitleIds.size, color: colors.arcane.primary },
     { key: 'heirlooms', label: 'Heirlooms', icon: 'diamond', count: collectedHeirloomIds.size, color: colors.fire.primary },
   ];
@@ -61,7 +64,7 @@ export default function StatsScreen() {
           </View>
         ) : (
           <>
-            {/* Character header */}
+            {/* Character hero card */}
             <Card variant="gold" style={z.heroCard}>
               <View style={z.heroRow}>
                 <View style={z.heroIcon}>
@@ -91,11 +94,11 @@ export default function StatsScreen() {
               </View>
             )}
 
-            {/* Collection stat cards */}
+            {/* Collection cards — tappable where routes exist */}
             <View style={z.grid}>
               {stats.map(stat => (
                 <View key={stat.key} style={z.statCard}>
-                  <Card variant="default">
+                  <Card variant="default" onPress={stat.route ? () => router.push(stat.route as any) : undefined}>
                     <View style={z.statInner}>
                       <View style={[z.statIcon, { backgroundColor: stat.color + '18' }]}>
                         <Ionicons name={stat.icon} size={20} color={stat.color} />
@@ -105,29 +108,32 @@ export default function StatsScreen() {
                       {stat.points !== undefined && stat.points > 0 && (
                         <Text style={z.statPoints}>{stat.points.toLocaleString()} pts</Text>
                       )}
+                      {stat.route && (
+                        <Ionicons name="chevron-forward" size={12} color={colors.text.tertiary} style={z.statArrow} />
+                      )}
                     </View>
                   </Card>
                 </View>
               ))}
             </View>
 
-            {/* Category breakdown from summary */}
+            {/* Breakdown list */}
             {collectionSummary && (
               <View style={z.section}>
                 <Text style={z.sectionTitle}>Collection Breakdown</Text>
-                {Object.entries(collectionSummary.summary).map(([key, val]) => {
-                  const stat = stats.find(s => s.key === key);
-                  const barColor = stat?.color || colors.text.tertiary;
-                  return (
-                    <View key={key} style={z.breakdownRow}>
-                      <View style={z.breakdownLabel}>
+                <View style={z.breakdownCard}>
+                  {Object.entries(collectionSummary.summary).map(([key, val], idx, arr) => {
+                    const stat = stats.find(s => s.key === key);
+                    const barColor = stat?.color || colors.text.tertiary;
+                    return (
+                      <View key={key} style={[z.breakdownRow, idx === arr.length - 1 && { borderBottomWidth: 0 }]}>
                         <Ionicons name={(stat?.icon || 'ellipse') as any} size={14} color={barColor} />
                         <Text style={z.breakdownText}>{stat?.label || key}</Text>
+                        <Text style={[z.breakdownCount, { color: barColor }]}>{val.count.toLocaleString()}</Text>
                       </View>
-                      <Text style={[z.breakdownCount, { color: barColor }]}>{val.count.toLocaleString()}</Text>
-                    </View>
-                  );
-                })}
+                    );
+                  })}
+                </View>
               </View>
             )}
           </>
@@ -162,12 +168,13 @@ const z = StyleSheet.create({
   statInner: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
   statIcon: { width: 40, height: 40, borderRadius: radii.full, alignItems: 'center', justifyContent: 'center' },
   statCount: { fontSize: 22, fontWeight: '700', color: colors.text.primary },
-  statLabel: { ...typography.label, fontSize: 9 },
+  statLabel: { ...typography.label, fontSize: 10 },
   statPoints: { fontSize: 10, fontWeight: '600', color: colors.gold.dim },
-  section: { gap: spacing.md },
+  statArrow: { position: 'absolute', top: spacing.sm, right: spacing.sm },
+  section: { gap: spacing.sm },
   sectionTitle: { ...typography.heading },
-  breakdownRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border.default },
-  breakdownLabel: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  breakdownText: { ...typography.body, fontSize: 14 },
+  breakdownCard: { backgroundColor: colors.bg.secondary, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, overflow: 'hidden' },
+  breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border.default },
+  breakdownText: { ...typography.body, fontSize: 14, flex: 1 },
   breakdownCount: { fontSize: 15, fontWeight: '700' },
 });
