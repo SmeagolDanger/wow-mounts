@@ -261,35 +261,10 @@ export default function CollectionScreen() {
                   </Pressable>
                 )}
 
-                {myChars.length > 0 && (
-                  <>
-                    <Text style={z.pickerSection}>YOUR CHARACTERS</Text>
-                    {myChars.map(char => {
-                      const isActive = selectedChar?.character_name === char.name?.toLowerCase() && selectedChar?.realm_slug === char.realm_slug;
-                      return (
-                        <Pressable key={`${char.realm_slug}-${char.name}`}
-                          onPress={() => { selectCharacter({ realm_slug: char.realm_slug, character_name: char.name, display: `${char.name}-${char.realm_slug}`, faction: char.faction?.toLowerCase() }); setCharPickerVisible(false); }}
-                          style={[z.favRow, isActive && z.favRowActive]}>
-                          <View style={[z.favAvatar, z.favAvatarPh]}>
-                            <Ionicons name="person" size={16} color={colors.classColor[char.class_name] || colors.text.tertiary} />
-                          </View>
-                          <View style={z.favInfo}>
-                            <Text style={z.favName}>{char.name}</Text>
-                            <Text style={[z.favClass, { color: colors.classColor[char.class_name] || colors.text.secondary }]}>
-                              Lv {char.level} · {char.race_name} {char.class_name}
-                            </Text>
-                            <Text style={z.favRealm}>{char.realm}</Text>
-                          </View>
-                          {isActive && <Ionicons name="checkmark-circle" size={20} color={colors.gold.primary} />}
-                        </Pressable>
-                      );
-                    })}
-                  </>
-                )}
-
+                {/* Favorites first — these always work regardless of Battle.net status */}
                 {favorites.length > 0 && (
                   <>
-                    <Text style={z.pickerSection}>{myChars.length > 0 ? 'FAVORITES' : 'FAVORITE CHARACTERS'}</Text>
+                    <Text style={z.pickerSection}>FAVORITE CHARACTERS</Text>
                     {favorites.map(fav => {
                       const isActive = selectedChar?.character_name === fav.character_name && selectedChar?.realm_slug === fav.realm_slug;
                       return (
@@ -315,7 +290,7 @@ export default function CollectionScreen() {
                   </>
                 )}
 
-                {/* Inline search — always shown */}
+                {/* Search — always shown, primary way to add characters */}
                 <Text style={z.pickerSection}>SEARCH CHARACTER</Text>
                 <View style={z.pickerSearchRow}>
                   <TextInput style={[z.pickerInput, { flex: 2 }]} value={pickerRealm} onChangeText={setPickerRealm}
@@ -347,12 +322,39 @@ export default function CollectionScreen() {
                   </Pressable>
                 )}
 
-                {myChars.length === 0 && favorites.length === 0 && !loadingPicker && !pickerResult && (
+                {/* Battle.net characters — shown below search since they often don't load */}
+                {myChars.length > 0 && (
+                  <>
+                    <Text style={z.pickerSection}>BATTLE.NET CHARACTERS</Text>
+                    {myChars.map(char => {
+                      const isActive = selectedChar?.character_name === char.name?.toLowerCase() && selectedChar?.realm_slug === char.realm_slug;
+                      return (
+                        <Pressable key={`${char.realm_slug}-${char.name}`}
+                          onPress={() => { selectCharacter({ realm_slug: char.realm_slug, character_name: char.name, display: `${char.name}-${char.realm_slug}`, faction: char.faction?.toLowerCase() }); setCharPickerVisible(false); }}
+                          style={[z.favRow, isActive && z.favRowActive]}>
+                          <View style={[z.favAvatar, z.favAvatarPh]}>
+                            <Ionicons name="person" size={16} color={colors.classColor[char.class_name] || colors.text.tertiary} />
+                          </View>
+                          <View style={z.favInfo}>
+                            <Text style={z.favName}>{char.name}</Text>
+                            <Text style={[z.favClass, { color: colors.classColor[char.class_name] || colors.text.secondary }]}>
+                              Lv {char.level} · {char.race_name} {char.class_name}
+                            </Text>
+                            <Text style={z.favRealm}>{char.realm}</Text>
+                          </View>
+                          {isActive && <Ionicons name="checkmark-circle" size={20} color={colors.gold.primary} />}
+                        </Pressable>
+                      );
+                    })}
+                  </>
+                )}
+
+                {favorites.length === 0 && myChars.length === 0 && !loadingPicker && !pickerResult && (
                   <View style={z.pickerEmpty}>
                     <Text style={z.pickerEmptySub}>
                       {hasBnet
-                        ? 'Your WoW profile may be set to private. Search for a character above instead.'
-                        : 'Search for any character above, or link Battle.net on the Profile tab to auto-load yours.'}
+                        ? 'Your WoW profile may be set to private. Search for a character above to get started.'
+                        : 'Search for any character above, or link Battle.net on the Profile tab.'}
                     </Text>
                   </View>
                 )}

@@ -51,19 +51,24 @@ class BlizzardAPI:
 
     async def _profile_request(self, path: str, access_token: str = None):
         """Make a request to the WoW Profile API.
-        Uses user's OAuth token if available, otherwise client credentials."""
-        token = access_token or self._client_token
-        if not token:
-            await self._ensure_client_token()
-            token = self._client_token
-
+        Uses user's OAuth token if available, falls back to client credentials on 401."""
         region = settings.BNET_REGION
         ns = f"profile-{region}"
         url = f"{settings.bnet_api_base}{path}"
         query = {"namespace": ns, "locale": "en_US"}
-        headers = {"Authorization": f"Bearer {token}"}
 
-        resp = await self._http.get(url, params=query, headers=headers)
+        # Try user token first if provided
+        if access_token:
+            resp = await self._http.get(url, params=query, headers={"Authorization": f"Bearer {access_token}"})
+            if resp.status_code != 401:
+                resp.raise_for_status()
+                return resp.json()
+            # User token expired/invalid — fall back to client credentials
+            logger.debug("User OAuth token returned 401 for %s, falling back to client credentials", path)
+
+        # Use client credentials
+        await self._ensure_client_token()
+        resp = await self._http.get(url, params=query, headers={"Authorization": f"Bearer {self._client_token}"})
         resp.raise_for_status()
         return resp.json()
 

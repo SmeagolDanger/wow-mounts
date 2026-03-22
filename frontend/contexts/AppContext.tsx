@@ -149,6 +149,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const char = JSON.parse(saved) as SelectedChar;
           setSelectedChar(char);
           loadCollected(char); // fire and forget — don't delay ready
+        } else {
+          // No saved character — try to auto-select primary favorite
+          try {
+            const favs = await api.getFavorites();
+            const primary = favs.characters.find(c => c.is_primary) || favs.characters[0];
+            if (primary) {
+              const char: SelectedChar = {
+                realm_slug: primary.realm_slug,
+                character_name: primary.character_name,
+                display: `${primary.character_name}-${primary.realm_slug}`,
+                avatar_url: primary.avatar_url,
+              };
+              setSelectedChar(char);
+              await SecureStore.setItemAsync('selected_char', JSON.stringify(char));
+              loadCollected(char);
+            }
+          } catch {}
         }
       } catch {}
       setIsReady(true);
