@@ -64,14 +64,16 @@ async def get_character_pets(
     for pet in data.get("pets", []):
         species = pet.get("species", {})
         stats = pet.get("stats", {})
-        pets.append({
-            "id": species.get("id"),
-            "name": species.get("name"),
-            "level": pet.get("level", 1),
-            "quality": pet.get("quality", {}).get("type", "COMMON"),
-            "breed_id": stats.get("breed_id"),
-            "species_id": species.get("id"),
-        })
+        pets.append(
+            {
+                "id": species.get("id"),
+                "name": species.get("name"),
+                "level": pet.get("level", 1),
+                "quality": pet.get("quality", {}).get("type", "COMMON"),
+                "breed_id": stats.get("breed_id"),
+                "species_id": species.get("id"),
+            }
+        )
 
     return {"pets": pets, "total": len(pets)}
 
@@ -102,11 +104,13 @@ async def get_character_toys(
     toys = []
     for toy in data.get("toys", []):
         toy_info = toy.get("toy", {})
-        toys.append({
-            "id": toy_info.get("id"),
-            "name": toy_info.get("name"),
-            "item_id": toy.get("item", {}).get("id"),
-        })
+        toys.append(
+            {
+                "id": toy_info.get("id"),
+                "name": toy_info.get("name"),
+                "item_id": toy.get("item", {}).get("id"),
+            }
+        )
 
     return {"toys": toys, "total": len(toys)}
 
@@ -138,32 +142,36 @@ async def get_character_achievements(
     achievements = []
     for ach in data.get("achievements", []):
         achievement = ach.get("achievement", {})
-        achievements.append({
-            "id": achievement.get("id"),
-            "name": achievement.get("name"),
-            "completed_timestamp": ach.get("completed_timestamp"),
-            "criteria": ach.get("criteria"),
-        })
+        achievements.append(
+            {
+                "id": achievement.get("id"),
+                "name": achievement.get("name"),
+                "completed_timestamp": ach.get("completed_timestamp"),
+                "criteria": ach.get("criteria"),
+            }
+        )
 
     # Extract category progress
     categories = []
     for cat in data.get("category_progress", []):
         category = cat.get("category", {})
-        categories.append({
-            "id": category.get("id"),
-            "name": category.get("name"),
-            "quantity": cat.get("quantity", 0),
-            "points": cat.get("points", 0),
-            "subcategories": [
-                {
-                    "id": sc.get("category", {}).get("id"),
-                    "name": sc.get("category", {}).get("name"),
-                    "quantity": sc.get("quantity", 0),
-                    "points": sc.get("points", 0),
-                }
-                for sc in cat.get("subcategories", [])
-            ],
-        })
+        categories.append(
+            {
+                "id": category.get("id"),
+                "name": category.get("name"),
+                "quantity": cat.get("quantity", 0),
+                "points": cat.get("points", 0),
+                "subcategories": [
+                    {
+                        "id": sc.get("category", {}).get("id"),
+                        "name": sc.get("category", {}).get("name"),
+                        "quantity": sc.get("quantity", 0),
+                        "points": sc.get("points", 0),
+                    }
+                    for sc in cat.get("subcategories", [])
+                ],
+            }
+        )
 
     return {
         "achievements": achievements,
@@ -198,18 +206,24 @@ async def get_character_titles(
 
     titles = []
     for title in data.get("titles", []):
-        titles.append({
-            "id": title.get("id"),
-            "name": title.get("name"),
-            "display_string": title.get("display_string"),
-        })
+        titles.append(
+            {
+                "id": title.get("id"),
+                "name": title.get("name"),
+                "display_string": title.get("display_string"),
+            }
+        )
 
     active = data.get("active_title", {})
-    active_title = {
-        "id": active.get("id"),
-        "name": active.get("name"),
-        "display_string": active.get("display_string"),
-    } if active.get("id") else None
+    active_title = (
+        {
+            "id": active.get("id"),
+            "name": active.get("name"),
+            "display_string": active.get("display_string"),
+        }
+        if active.get("id")
+        else None
+    )
 
     return {"titles": titles, "total": len(titles), "active_title": active_title}
 
@@ -241,16 +255,18 @@ async def get_character_reputations(
     for rep in data.get("reputations", []):
         faction = rep.get("faction", {})
         standing = rep.get("standing", {})
-        reputations.append({
-            "faction_id": faction.get("id"),
-            "faction_name": faction.get("name"),
-            "standing_raw": standing.get("raw", 0),
-            "standing_value": standing.get("value", 0),
-            "standing_max": standing.get("max", 0),
-            "standing_tier": standing.get("tier"),
-            "standing_name": standing.get("name"),
-            "paragon": rep.get("paragon"),
-        })
+        reputations.append(
+            {
+                "faction_id": faction.get("id"),
+                "faction_name": faction.get("name"),
+                "standing_raw": standing.get("raw", 0),
+                "standing_value": standing.get("value", 0),
+                "standing_max": standing.get("max", 0),
+                "standing_tier": standing.get("tier"),
+                "standing_name": standing.get("name"),
+                "paragon": rep.get("paragon"),
+            }
+        )
 
     return {"reputations": reputations}
 
@@ -281,11 +297,13 @@ async def get_character_heirlooms(
     heirlooms = []
     for h in data.get("heirlooms", []):
         heirloom = h.get("heirloom", {})
-        heirlooms.append({
-            "id": heirloom.get("id"),
-            "name": heirloom.get("name"),
-            "upgrade_level": h.get("upgrade", {}).get("level", 0),
-        })
+        heirlooms.append(
+            {
+                "id": heirloom.get("id"),
+                "name": heirloom.get("name"),
+                "upgrade_level": h.get("upgrade", {}).get("level", 0),
+            }
+        )
 
     return {"heirlooms": heirlooms, "total": len(heirlooms)}
 

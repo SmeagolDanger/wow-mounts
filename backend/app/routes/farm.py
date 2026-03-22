@@ -15,7 +15,17 @@ router = APIRouter(prefix="/farm", tags=["farm"])
 
 
 VALID_RESET_TYPES = {"daily", "weekly", "none"}
-VALID_SOURCE_TYPES = {"raid", "dungeon", "world_boss", "reputation", "achievement", "vendor", "quest", "drop", "promotion"}
+VALID_SOURCE_TYPES = {
+    "raid",
+    "dungeon",
+    "world_boss",
+    "reputation",
+    "achievement",
+    "vendor",
+    "quest",
+    "drop",
+    "promotion",
+}
 
 
 class FarmTaskCreate(BaseModel):
@@ -242,9 +252,7 @@ async def reset_tasks(
     payload = decode_jwt(token)
     user_id = int(payload["sub"])
 
-    result = await db.execute(
-        select(FarmTask).where(FarmTask.user_id == user_id, FarmTask.completed.is_(True))
-    )
+    result = await db.execute(select(FarmTask).where(FarmTask.user_id == user_id, FarmTask.completed.is_(True)))
     tasks = result.scalars().all()
 
     reset_count = 0
