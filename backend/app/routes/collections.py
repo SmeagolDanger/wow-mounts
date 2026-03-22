@@ -308,6 +308,118 @@ async def get_character_heirlooms(
     return {"heirlooms": heirlooms, "total": len(heirlooms)}
 
 
+# ── Character Professions ────────────────────────────────────────────
+
+
+@router.get("/professions")
+async def get_character_professions(
+    realm: str = Query(..., description="Realm slug"),
+    name: str = Query(..., description="Character name"),
+    region: str = Query("us"),
+    token: str = Depends(_extract_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a character's professions and learned recipes."""
+    realm, name = _validate_character_params(realm, name)
+    payload = decode_jwt(token)
+    user_id = int(payload["sub"])
+    bnet_token = await _get_user_bnet_token(user_id, db)
+
+    try:
+        data = await blizzard_api.get_character_professions(realm, name, bnet_token)
+    except Exception as e:
+        logger.debug("Professions unavailable for %s-%s: %s", name, realm, e)
+        return {"primaries": [], "secondaries": [], "total_recipes": 0}
+
+    primaries = []
+    secondaries = []
+
+    for prof in data.get("primaries", []):
+        profession = prof.get("profession", {})
+        tiers = []
+        total_known = 0
+        for tier in prof.get("tiers", []):
+            recipes = []
+            for recipe in tier.get("known_recipes", []):
+                recipes.append({"id": recipe.get("id"), "name": recipe.get("name")})
+            total_known += len(recipes)
+            tiers.append({
+                "tier_name": tier.get("tier", {}).get("name", "Unknown"),
+                "skill_points": tier.get("skill_points", 0),
+                "max_skill_points": tier.get("max_skill_points", 0),
+                "known_recipes": recipes,
+            })
+        primaries.append({
+            "id": profession.get("id"),
+            "name": profession.get("name"),
+            "tiers": tiers,
+            "total_known": total_known,
+        })
+
+    for prof in data.get("secondaries", []):
+        profession = prof.get("profession", {})
+        tiers = []
+        total_known = 0
+        for tier in prof.get("tiers", []):
+            recipes = []
+            for recipe in tier.get("known_recipes", []):
+                recipes.append({"id": recipe.get("id"), "name": recipe.get("name")})
+            total_known += len(recipes)
+            tiers.append({
+                "tier_name": tier.get("tier", {}).get("name", "Unknown"),
+                "skill_points": tier.get("skill_points", 0),
+                "max_skill_points": tier.get("max_skill_points", 0),
+                "known_recipes": recipes,
+            })
+        secondaries.append({
+            "id": profession.get("id"),
+            "name": profession.get("name"),
+            "tiers": tiers,
+            "total_known": total_known,
+        })
+
+    total_recipes = sum(p["total_known"] for p in primaries) + sum(p["total_known"] for p in secondaries)
+    return {"primaries": primaries, "secondaries": secondaries, "total_recipes": total_recipes}
+
+
+# ── Character Transmog / Appearances ────────────────────────────────
+
+
+@router.get("/transmog")
+async def get_character_transmog(
+    realm: str = Query(..., description="Realm slug"),
+    name: str = Query(..., description="Character name"),
+    region: str = Query("us"),
+    token: str = Depends(_extract_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a character's collected transmog appearances."""
+    realm, name = _validate_character_params(realm, name)
+    payload = decode_jwt(token)
+    user_id = int(payload["sub"])
+    bnet_token = await _get_user_bnet_token(user_id, db)
+
+    try:
+        data = await blizzard_api.get_character_appearances(realm, name, bnet_token)
+    except Exception as e:
+        logger.debug("Transmog unavailable for %s-%s: %s", name, realm, e)
+        return {"appearance_count": 0, "set_count": 0, "sets": []}
+
+    # Collected individual appearances
+    appearances = data.get("appearances", [])
+    appearance_count = len(appearances)
+
+    # Collected transmog sets
+    slots = data.get("appearance_sets", [])
+    set_count = len(slots)
+
+    return {
+        "appearance_count": appearance_count,
+        "set_count": set_count,
+        "sets": [{"id": s.get("id"), "name": s.get("name")} for s in slots],
+    }
+
+
 # ── Unified Collection Summary ───────────────────────────────────────
 
 
@@ -334,6 +446,18 @@ async def get_collection_summary(
             data = await coro
             if key == "achievements":
                 return ("achievements", data.get("total_quantity", 0), data.get("total_points", 0))
+            if key == "transmog":
+                return ("transmog", len(data.get("appearances", [])), 0)
+            if key == "recipes":
+                # Count total recipes across all professions
+                total = 0
+                for prof in data.get("primaries", []):
+                    for tier in prof.get("tiers", []):
+                        total += len(tier.get("known_recipes", []))
+                for prof in data.get("secondaries", []):
+                    for tier in prof.get("tiers", []):
+                        total += len(tier.get("known_recipes", []))
+                return ("recipes", total, 0)
             items = data.get(key, [])
             return (key, len(items) if isinstance(items, list) else 0, 0)
         except Exception:
@@ -346,6 +470,8 @@ async def get_collection_summary(
         safe_fetch(blizzard_api.get_character_achievements(realm, name, bnet_token), "achievements"),
         safe_fetch(blizzard_api.get_character_titles(realm, name, bnet_token), "titles"),
         safe_fetch(blizzard_api.get_character_heirlooms(realm, name, bnet_token), "heirlooms"),
+        safe_fetch(blizzard_api.get_character_appearances(realm, name, bnet_token), "transmog"),
+        safe_fetch(blizzard_api.get_character_professions(realm, name, bnet_token), "recipes"),
         return_exceptions=True,
     )
 

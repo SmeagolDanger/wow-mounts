@@ -189,6 +189,38 @@ class BlizzardAPI:
             access_token=access_token,
         )
 
+    # ── Character Professions ──────────────────────────────────────
+    async def get_character_professions(self, realm_slug: str, character_name: str, access_token: str = None) -> dict:
+        """Fetch a character's professions and learned recipes."""
+        name = character_name.lower()
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}/professions",
+            access_token=access_token,
+        )
+
+    # ── Character Appearances ─────────────────────────────────────
+    async def get_character_appearances(self, realm_slug: str, character_name: str, access_token: str = None) -> dict:
+        """Fetch a character's collected transmog appearances."""
+        name = character_name.lower()
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}/collections/transmogs",
+            access_token=access_token,
+        )
+
+    # ── Transmog Set Index ────────────────────────────────────────
+    async def get_transmog_set_index(self) -> dict:
+        """Fetch all transmog sets from the game data API."""
+        return await self._game_data_request("/data/wow/transmog-set/index")
+
+    # ── Profession Data ───────────────────────────────────────────
+    async def get_profession_index(self) -> dict:
+        """Fetch all professions."""
+        return await self._game_data_request("/data/wow/profession/index")
+
+    async def get_recipe(self, recipe_id: int) -> dict:
+        """Fetch details for a single recipe."""
+        return await self._game_data_request(f"/data/wow/recipe/{recipe_id}")
+
     # ── Realm Data ───────────────────────────────────────────────────
     async def get_realm_index(self) -> dict:
         """Fetch list of all realms (for character search dropdown)."""

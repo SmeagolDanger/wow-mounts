@@ -21,6 +21,8 @@ interface AppContextType {
   collectedToyIds: Set<number>;
   collectedTitleIds: Set<number>;
   collectedHeirloomIds: Set<number>;
+  transmogCount: number;
+  recipeCount: number;
   achievementCount: number;
   achievementPoints: number;
   collectionSummary: CollectionSummary | null;
@@ -45,6 +47,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [collectedToyIds, setCollectedToyIds] = useState<Set<number>>(new Set());
   const [collectedTitleIds, setCollectedTitleIds] = useState<Set<number>>(new Set());
   const [collectedHeirloomIds, setCollectedHeirloomIds] = useState<Set<number>>(new Set());
+  const [transmogCount, setTransmogCount] = useState(0);
+  const [recipeCount, setRecipeCount] = useState(0);
   const [achievementCount, setAchievementCount] = useState(0);
   const [achievementPoints, setAchievementPoints] = useState(0);
   const [collectionSummary, setCollectionSummary] = useState<CollectionSummary | null>(null);
@@ -78,7 +82,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         api.getCharacterTitles(char.realm_slug, char.character_name),
         api.getCharacterHeirlooms(char.realm_slug, char.character_name),
         api.getCharacterAchievements(char.realm_slug, char.character_name),
-      ]).then(([pets, toys, titles, heirlooms, achievements]) => {
+        api.getCharacterTransmog(char.realm_slug, char.character_name),
+        api.getCharacterProfessions(char.realm_slug, char.character_name),
+      ]).then(([pets, toys, titles, heirlooms, achievements, transmog, professions]) => {
         if (pets.status === 'fulfilled') setCollectedPetIds(new Set(pets.value.pets.map(p => p.species_id)));
         if (toys.status === 'fulfilled') setCollectedToyIds(new Set(toys.value.toys.map(t => t.id)));
         if (titles.status === 'fulfilled') setCollectedTitleIds(new Set(titles.value.titles.map(t => t.id)));
@@ -87,6 +93,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setAchievementCount(achievements.value.total_quantity);
           setAchievementPoints(achievements.value.total_points);
         }
+        if (transmog.status === 'fulfilled') setTransmogCount(transmog.value.appearance_count);
+        if (professions.status === 'fulfilled') setRecipeCount(professions.value.total_recipes);
       });
     } catch {
       setCollectedIds(new Set());
@@ -113,6 +121,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCollectedToyIds(new Set());
     setCollectedTitleIds(new Set());
     setCollectedHeirloomIds(new Set());
+    setTransmogCount(0);
+    setRecipeCount(0);
     setAchievementCount(0);
     setAchievementPoints(0);
     setCollectionSummary(null);
@@ -149,7 +159,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       isReady, userId, battletag, hasBnet,
       selectedChar, collectedIds, collectedPetIds, collectedToyIds,
-      collectedTitleIds, collectedHeirloomIds,
+      collectedTitleIds, collectedHeirloomIds, transmogCount, recipeCount,
       achievementCount, achievementPoints, collectionSummary,
       loadingCollected, selectCharacter, clearCharacter, refreshMe, refreshCollections,
     }}>

@@ -65,6 +65,12 @@ class ApiService {
   async getCollectionSummary(realm:string,name:string,region='us') {
     return this.request<CollectionSummary>('/collections/summary',{},{realm,name,region});
   }
+  async getCharacterProfessions(realm:string,name:string,region='us') {
+    return this.request<ProfessionData>('/collections/professions',{},{realm,name,region});
+  }
+  async getCharacterTransmog(realm:string,name:string,region='us') {
+    return this.request<TransmogData>('/collections/transmog',{},{realm,name,region});
+  }
 }
 
 // ── Interfaces ───────────────────────────────────────────────────────
@@ -101,6 +107,12 @@ export interface CollectionSummary {
   summary:Record<string,{count:number;points?:number}>;
   realm:string; character:string;
 }
+export interface RecipeSummary { id:number; name:string; }
+export interface ProfessionTier { tier_name:string; skill_points:number; max_skill_points:number; known_recipes:RecipeSummary[]; }
+export interface ProfessionEntry { id:number; name:string; tiers:ProfessionTier[]; total_known:number; }
+export interface ProfessionData { primaries:ProfessionEntry[]; secondaries:ProfessionEntry[]; total_recipes:number; }
+export interface TransmogSet { id:number; name:string; }
+export interface TransmogData { appearance_count:number; set_count:number; sets:TransmogSet[]; }
 
 export const api = new ApiService();
 export default api;

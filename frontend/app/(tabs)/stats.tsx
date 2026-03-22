@@ -20,7 +20,7 @@ interface StatRow {
 export default function StatsScreen() {
   const {
     selectedChar, collectedIds, collectedPetIds, collectedToyIds,
-    collectedTitleIds, collectedHeirloomIds,
+    collectedTitleIds, collectedHeirloomIds, transmogCount, recipeCount,
     achievementCount, achievementPoints,
     collectionSummary, loadingCollected, refreshCollections,
   } = useApp();
@@ -39,6 +39,8 @@ export default function StatsScreen() {
     { key: 'toys', label: 'Toys', icon: 'game-controller', count: collectedToyIds.size, color: colors.frost.primary },
     { key: 'titles', label: 'Titles', icon: 'bookmark', count: collectedTitleIds.size, color: colors.arcane.primary },
     { key: 'heirlooms', label: 'Heirlooms', icon: 'diamond', count: collectedHeirloomIds.size, color: colors.fire.primary },
+    { key: 'transmog', label: 'Transmog', icon: 'shirt', count: transmogCount, color: '#E879F9' },
+    { key: 'recipes', label: 'Recipes', icon: 'flask', count: recipeCount, color: '#FB923C' },
   ];
 
   const totalCollected = stats.reduce((s, r) => s + r.count, 0);

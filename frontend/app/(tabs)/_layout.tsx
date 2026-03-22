@@ -22,6 +22,8 @@ export default function TabLayout() {
       <Tabs.Screen name="achievements" options={{ href: null }} />
       <Tabs.Screen name="reputations" options={{ href: null }} />
       <Tabs.Screen name="farm" options={{ href: null }} />
+      <Tabs.Screen name="transmog" options={{ href: null }} />
+      <Tabs.Screen name="professions" options={{ href: null }} />
     </Tabs>
   );
 }

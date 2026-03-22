@@ -38,7 +38,9 @@
       "Bash(xargs grep:*)",
       "Read(//c/Users/Mike Kennedy/.claude/projects/c--Users-Mike-Kennedy-Documents-GitHub-wow-mounts/memory/**)",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app/routes/farm.py''\\).read\\(\\)\\); print\\(''farm.py OK''\\)\")",
-      "Bash(ls \"/c/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app/\\(tabs\\)/\")"
+      "Bash(ls \"/c/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app/\\(tabs\\)/\")",
+      "Bash(python -m py_compile app/services/blizzard.py)",
+      "Bash(python -m py_compile app/routes/collections.py)"
     ]
   }
 }
