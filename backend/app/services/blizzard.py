@@ -102,6 +102,93 @@ class BlizzardAPI:
             access_token=access_token,
         )
 
+    # ── Pet Data ───────────────────────────────────────────────────
+    async def get_pet_index(self) -> dict:
+        """Fetch the master list of all companion pets."""
+        return await self._game_data_request("/data/wow/pet/index")
+
+    async def get_pet_detail(self, pet_id: int) -> dict:
+        """Fetch details for a single pet."""
+        return await self._game_data_request(f"/data/wow/pet/{pet_id}")
+
+    # ── Toy Data ──────────────────────────────────────────────────
+    async def get_toy_index(self) -> dict:
+        """Fetch the master list of all toys."""
+        return await self._game_data_request("/data/wow/toy/index")
+
+    # ── Achievement Data ──────────────────────────────────────────
+    async def get_achievement_category_index(self) -> dict:
+        """Fetch achievement category tree."""
+        return await self._game_data_request("/data/wow/achievement-category/index")
+
+    async def get_achievement_category(self, category_id: int) -> dict:
+        """Fetch a single achievement category with its achievements."""
+        return await self._game_data_request(f"/data/wow/achievement-category/{category_id}")
+
+    # ── Title Data ────────────────────────────────────────────────
+    async def get_title_index(self) -> dict:
+        """Fetch all available character titles."""
+        return await self._game_data_request("/data/wow/title/index")
+
+    # ── Heirloom Data ─────────────────────────────────────────────
+    async def get_heirloom_index(self) -> dict:
+        """Fetch all heirloom items."""
+        return await self._game_data_request("/data/wow/heirloom/index")
+
+    # ── Reputation Data ───────────────────────────────────────────
+    async def get_reputation_faction_index(self) -> dict:
+        """Fetch all reputation factions."""
+        return await self._game_data_request("/data/wow/reputation-faction/index")
+
+    # ── Character Collections ─────────────────────────────────────
+    async def get_character_pets(self, realm_slug: str, character_name: str, access_token: str = None) -> dict:
+        """Fetch a character's collected pets."""
+        name = character_name.lower()
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}/collections/pets",
+            access_token=access_token,
+        )
+
+    async def get_character_toys(self, realm_slug: str, character_name: str, access_token: str = None) -> dict:
+        """Fetch a character's collected toys."""
+        name = character_name.lower()
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}/collections/toys",
+            access_token=access_token,
+        )
+
+    async def get_character_heirlooms(self, realm_slug: str, character_name: str, access_token: str = None) -> dict:
+        """Fetch a character's collected heirlooms."""
+        name = character_name.lower()
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}/collections/heirlooms",
+            access_token=access_token,
+        )
+
+    async def get_character_achievements(self, realm_slug: str, character_name: str, access_token: str = None) -> dict:
+        """Fetch a character's achievement progress."""
+        name = character_name.lower()
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}/achievements",
+            access_token=access_token,
+        )
+
+    async def get_character_titles(self, realm_slug: str, character_name: str, access_token: str = None) -> dict:
+        """Fetch a character's earned titles."""
+        name = character_name.lower()
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}/titles",
+            access_token=access_token,
+        )
+
+    async def get_character_reputations(self, realm_slug: str, character_name: str, access_token: str = None) -> dict:
+        """Fetch a character's reputation standings."""
+        name = character_name.lower()
+        return await self._profile_request(
+            f"/profile/wow/character/{realm_slug}/{name}/reputations",
+            access_token=access_token,
+        )
+
     # ── Realm Data ───────────────────────────────────────────────────
     async def get_realm_index(self) -> dict:
         """Fetch list of all realms (for character search dropdown)."""

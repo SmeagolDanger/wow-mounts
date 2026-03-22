@@ -11,7 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import get_settings
 from app.database import init_db
-from app.routes import auth, characters, farm, mounts
+from app.routes import auth, characters, collections, farm, mounts
 from app.services.blizzard import blizzard_api
 
 logging.basicConfig(
@@ -26,12 +26,13 @@ settings = get_settings()
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Simple in-memory per-IP rate limiter."""
+    """Simple in-memory per-IP rate limiter with periodic cleanup."""
 
     def __init__(self, app, calls_per_minute: int = 60):
         super().__init__(app)
         self.calls_per_minute = calls_per_minute
         self.requests: dict[str, list[float]] = defaultdict(list)
+        self._last_cleanup = time.time()
 
     async def dispatch(self, request: Request, call_next):
         # Skip health checks
@@ -42,13 +43,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Also check X-Forwarded-For behind a proxy
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
+            # Only trust first hop — don't blindly trust all proxies
             client_ip = forwarded.split(",")[0].strip()
 
         now = time.time()
         window = now - 60
 
-        # Clean old entries
+        # Clean old entries for this IP
         self.requests[client_ip] = [t for t in self.requests[client_ip] if t > window]
+
+        # Periodic cleanup: purge stale IPs every 5 minutes to prevent memory leak
+        if now - self._last_cleanup > 300:
+            stale_ips = [ip for ip, ts in self.requests.items() if not ts or ts[-1] < window]
+            for ip in stale_ips:
+                del self.requests[ip]
+            self._last_cleanup = now
 
         if len(self.requests[client_ip]) >= self.calls_per_minute:
             return Response(
@@ -73,9 +82,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; "
+            "script-src 'unsafe-inline'; "  # needed for OAuth callback redirect page only
+            "style-src 'unsafe-inline'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'"
+        )
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         if settings.is_production:
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        # Strip server header
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        # Strip server header to avoid fingerprinting
         if "server" in response.headers:
             del response.headers["server"]
         return response
@@ -125,6 +143,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(mounts.router, prefix="/api")
 app.include_router(characters.router, prefix="/api")
 app.include_router(farm.router, prefix="/api")
+app.include_router(collections.router, prefix="/api")
 
 
 @app.get("/api/health")

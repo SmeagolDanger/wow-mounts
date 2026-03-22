@@ -14,6 +14,10 @@ from app.routes.auth import _extract_token, decode_jwt
 router = APIRouter(prefix="/farm", tags=["farm"])
 
 
+VALID_RESET_TYPES = {"daily", "weekly", "none"}
+VALID_SOURCE_TYPES = {"raid", "dungeon", "world_boss", "reputation", "achievement", "vendor", "quest", "drop", "promotion"}
+
+
 class FarmTaskCreate(BaseModel):
     title: str
     description: str | None = None
@@ -24,6 +28,24 @@ class FarmTaskCreate(BaseModel):
     notes: str | None = None
     sort_order: int = 0
 
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+    def model_post_init(self, __context):
+        if len(self.title) > 255:
+            raise ValueError("Title must be 255 characters or less")
+        if self.description and len(self.description) > 2000:
+            raise ValueError("Description must be 2000 characters or less")
+        if self.notes and len(self.notes) > 2000:
+            raise ValueError("Notes must be 2000 characters or less")
+        if self.zone_name and len(self.zone_name) > 128:
+            raise ValueError("Zone name must be 128 characters or less")
+        if self.source_type and len(self.source_type) > 64:
+            raise ValueError("Source type must be 64 characters or less")
+        if self.reset_type not in VALID_RESET_TYPES:
+            raise ValueError(f"reset_type must be one of: {', '.join(VALID_RESET_TYPES)}")
+
 
 class FarmTaskUpdate(BaseModel):
     title: str | None = None
@@ -33,6 +55,16 @@ class FarmTaskUpdate(BaseModel):
     reset_type: str | None = None
     notes: str | None = None
     sort_order: int | None = None
+
+    def model_post_init(self, __context):
+        if self.title is not None and len(self.title) > 255:
+            raise ValueError("Title must be 255 characters or less")
+        if self.description is not None and len(self.description) > 2000:
+            raise ValueError("Description must be 2000 characters or less")
+        if self.notes is not None and len(self.notes) > 2000:
+            raise ValueError("Notes must be 2000 characters or less")
+        if self.reset_type is not None and self.reset_type not in VALID_RESET_TYPES:
+            raise ValueError(f"reset_type must be one of: {', '.join(VALID_RESET_TYPES)}")
 
 
 # ── Reset Logic ──────────────────────────────────────────────────────
@@ -198,6 +230,47 @@ async def update_farm_task(
 
     await db.commit()
     return {"id": task.id, "updated": True}
+
+
+@router.post("/reset")
+async def reset_tasks(
+    token: str = Depends(_extract_token),
+    reset_filter: str = Body("all", embed=True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset completed tasks by type: 'all', 'daily', 'weekly', 'dungeons', 'raids'."""
+    payload = decode_jwt(token)
+    user_id = int(payload["sub"])
+
+    result = await db.execute(
+        select(FarmTask).where(FarmTask.user_id == user_id, FarmTask.completed.is_(True))
+    )
+    tasks = result.scalars().all()
+
+    reset_count = 0
+    for task in tasks:
+        should_reset = False
+        if reset_filter == "all":
+            should_reset = True
+        elif reset_filter == "daily":
+            should_reset = task.reset_type == "daily"
+        elif reset_filter == "weekly":
+            should_reset = task.reset_type == "weekly"
+        elif reset_filter == "dungeons":
+            should_reset = task.source_type == "dungeon"
+        elif reset_filter == "raids":
+            should_reset = task.source_type == "raid"
+
+        if should_reset:
+            task.completed = False
+            task.completed_at = None
+            task.last_reset = datetime.now(UTC)
+            reset_count += 1
+
+    if reset_count:
+        await db.commit()
+
+    return {"reset_count": reset_count}
 
 
 @router.delete("/{task_id}")

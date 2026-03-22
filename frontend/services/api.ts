@@ -41,13 +41,66 @@ class ApiService {
   async createFarmTask(t:Partial<FarmTask>) { return this.request<{id:number;title:string}>('/farm/',{method:'POST',body:JSON.stringify(t)}); }
   async toggleFarmTask(id:number) { return this.request<{id:number;completed:boolean}>(`/farm/${id}/complete`,{method:'PATCH'}); }
   async deleteFarmTask(id:number) { return this.request<{deleted:boolean}>(`/farm/${id}`,{method:'DELETE'}); }
+  async resetFarmTasks(filter:'all'|'daily'|'weekly'|'dungeons'|'raids') { return this.request<{reset_count:number}>('/farm/reset',{method:'POST',body:JSON.stringify({reset_filter:filter})}); }
+
+  // ── Collections ──────────────────────────────────────────────────
+  async getCharacterPets(realm:string,name:string,region='us') {
+    return this.request<{pets:PetSummary[];total:number}>('/collections/pets',{},{realm,name,region});
+  }
+  async getCharacterToys(realm:string,name:string,region='us') {
+    return this.request<{toys:ToySummary[];total:number}>('/collections/toys',{},{realm,name,region});
+  }
+  async getCharacterAchievements(realm:string,name:string,region='us') {
+    return this.request<AchievementData>('/collections/achievements',{},{realm,name,region});
+  }
+  async getCharacterTitles(realm:string,name:string,region='us') {
+    return this.request<{titles:TitleSummary[];total:number;active_title:TitleSummary|null}>('/collections/titles',{},{realm,name,region});
+  }
+  async getCharacterReputations(realm:string,name:string,region='us') {
+    return this.request<{reputations:ReputationEntry[]}>('/collections/reputations',{},{realm,name,region});
+  }
+  async getCharacterHeirlooms(realm:string,name:string,region='us') {
+    return this.request<{heirlooms:HeirloomSummary[];total:number}>('/collections/heirlooms',{},{realm,name,region});
+  }
+  async getCollectionSummary(realm:string,name:string,region='us') {
+    return this.request<CollectionSummary>('/collections/summary',{},{realm,name,region});
+  }
 }
 
+// ── Interfaces ───────────────────────────────────────────────────────
 export interface MountSummary { id:number; name:string; description?:string; source_type?:string; faction?:string; icon_url?:string; }
 export interface WowChar { name:string; realm_slug:string; realm:string; level:number; class_name:string; race_name:string; faction:string; }
 export interface CharLookup { name:string; realm:string; realm_slug:string; level:number; race:string; class:string; faction:string; avatar_url:string|null; mounts:{mount:{id:number;name:string}}[]|null; mount_count:number|null; }
 export interface FavChar { id:number; realm_slug:string; character_name:string; region:string; class_name:string; race_name:string; level:number; avatar_url:string|null; is_primary:boolean; }
 export interface FarmTask { id:number; title:string; description?:string; mount_id?:number; source_type?:string; zone_name?:string; reset_type:string; completed:boolean; completed_at?:string; notes?:string; sort_order:number; }
 export interface ResetInfo { daily_reset:string; weekly_reset:string; tasks_reset:number; }
+
+export interface PetSummary { id:number; name:string; level:number; quality:string; breed_id?:number; species_id:number; }
+export interface ToySummary { id:number; name:string; item_id?:number; }
+export interface TitleSummary { id:number; name:string; display_string?:string; }
+export interface HeirloomSummary { id:number; name:string; upgrade_level:number; }
+export interface ReputationEntry {
+  faction_id:number; faction_name:string;
+  standing_raw:number; standing_value:number; standing_max:number;
+  standing_tier?:number; standing_name?:string;
+  paragon?:{raw:number;value:number;max:number}|null;
+}
+export interface AchievementCategory {
+  id:number; name:string; quantity:number; points:number;
+  subcategories?:{id:number;name:string;quantity:number;points:number}[];
+}
+export interface AchievementEntry {
+  id:number; name:string; completed_timestamp?:number;
+  criteria?:any;
+}
+export interface AchievementData {
+  achievements:AchievementEntry[]; total_quantity:number; total_points:number;
+  categories:AchievementCategory[];
+}
+export interface CollectionSummary {
+  summary:Record<string,{count:number;points?:number}>;
+  realm:string; character:string;
+}
+
 export const api = new ApiService();
 export default api;

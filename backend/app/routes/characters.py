@@ -28,7 +28,7 @@ async def lookup_character(
     try:
         profile = await blizzard_api.get_character_profile(realm, name)
     except Exception as e:
-        raise HTTPException(404, f"Character not found: {e}") from e
+        raise HTTPException(404, "Character not found") from e
 
     # Try to get mount collection
     mounts = None
@@ -74,7 +74,7 @@ async def get_realms():
         realms = data.get("realms", [])
         return {"realms": [{"id": r.get("id"), "name": r.get("name"), "slug": r.get("slug")} for r in realms]}
     except Exception as e:
-        raise HTTPException(502, f"Failed to fetch realms: {e}") from e
+        raise HTTPException(502, "Failed to fetch realms from Blizzard API") from e
 
 
 # ── My WoW Characters (requires Battle.net auth) ────────────────────

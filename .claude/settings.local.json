@@ -12,7 +12,26 @@
       "WebFetch(domain:www.wow-professions.com)",
       "WebFetch(domain:www.warcrafttavern.com)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(pandoc --version)",
+      "Bash(python -c \"import docx; print\\(''''python-docx available''''\\)\")",
+      "Bash(python -c \"from docx import Document; print\\(''''python-docx ok''''\\)\")",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(python -c \"from docx import Document; print\\(''ok''\\)\")",
+      "Bash(python generate_template.py)",
+      "Bash(mkdir -p /tmp/simplearmory)",
+      "Read(//tmp/**)",
+      "Bash(unzip -o 'C:/Users/Mike Kennedy/Downloads/SimpleArmory-master.zip')",
+      "Read(//c/Users/Mike Kennedy/AppData/Local/Temp/simplearmory/SimpleArmory-master/src/components/Category/**)",
+      "Read(//c/Users/Mike Kennedy/AppData/Local/Temp/simplearmory/SimpleArmory-master/src/components/**)",
+      "Read(//c/Users/Mike Kennedy/AppData/Local/Temp/simplearmory/SimpleArmory-master/src/stores/**)",
+      "Read(//c/Users/Mike Kennedy/AppData/Local/Temp/simplearmory/SimpleArmory-master/src/util/**)",
+      "Read(//c/Users/Mike Kennedy/AppData/Local/Temp/simplearmory/SimpleArmory-master/dataimporter/**)",
+      "Bash(npx tsc:*)",
+      "Bash(python -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in [''app/main.py'', ''app/config.py'', ''app/database.py'', ''app/models.py'', ''app/routes/auth.py'', ''app/routes/mounts.py'', ''app/routes/characters.py'', ''app/routes/farm.py'', ''app/routes/collections.py'', ''app/services/blizzard.py'']]\")",
+      "Bash(wc -l \"c:/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app/\\(tabs\\)/routes.tsx\")",
+      "Bash(cat \"c:/Users/Mike Kennedy/Documents/GitHub/wow-mounts/frontend/app/\\(tabs\\)/routes.tsx\")"
     ]
   }
 }

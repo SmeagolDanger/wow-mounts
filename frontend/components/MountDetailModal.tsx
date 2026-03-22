@@ -165,7 +165,7 @@ export default function MountDetailModal({ mountId, visible, onClose, onFarmChan
                     <View style={[z.glow, { shadowColor: sourceColor }]} />
                     {icon
                       ? <Image source={{ uri: icon }} style={z.mountImg} resizeMode="cover" />
-                      : <View style={z.noImg}><Ionicons name="horse" size={52} color={colors.text.tertiary} /></View>
+                      : <View style={z.noImg}><Ionicons name="sparkles-outline" size={52} color={colors.text.tertiary} /></View>
                     }
                   </Animated.View>
                   <Text style={z.dragHint}>drag to rotate</Text>

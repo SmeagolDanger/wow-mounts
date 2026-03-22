@@ -162,7 +162,7 @@ async def get_mount_index(
                 "cached": True,
                 "stale": True,
             }
-        raise HTTPException(502, f"Blizzard API error: {e}") from e
+        raise HTTPException(502, "Blizzard API temporarily unavailable") from e
 
     now = datetime.now(UTC)
     response_mounts = []
@@ -223,12 +223,14 @@ async def get_mount_icons(
 
 @router.get("/search")
 async def search_mounts(
-    q: str = Query(..., min_length=2),
+    q: str = Query(..., min_length=2, max_length=100),
     db: AsyncSession = Depends(get_db),
 ):
     """Search mounts by name."""
+    # Escape LIKE wildcards in user input to prevent LIKE injection / performance attacks
+    safe_q = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     result = await db.execute(
-        select(CachedMount).where(CachedMount.name.ilike(f"%{q}%")).order_by(CachedMount.name).limit(50)
+        select(CachedMount).where(CachedMount.name.ilike(f"%{safe_q}%")).order_by(CachedMount.name).limit(50)
     )
     mounts = result.scalars().all()
     return {
@@ -266,7 +268,7 @@ async def get_mount_detail(mount_id: int, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         if cached and cached.raw_data:
             return cached.raw_data
-        raise HTTPException(502, f"Blizzard API error: {e}") from e
+        raise HTTPException(502, "Blizzard API temporarily unavailable") from e
 
     icon_url = None
     creature_display_id = None

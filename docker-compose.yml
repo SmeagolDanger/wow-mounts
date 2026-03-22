@@ -2,7 +2,7 @@ services:
   api:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"  # Bind to localhost only in development
     environment:
       - DATABASE_URL=postgresql+asyncpg://wowmounts:wowmounts@db:5432/wowmounts
       - BNET_CLIENT_ID=${BNET_CLIENT_ID}
@@ -25,7 +25,7 @@ services:
       POSTGRES_USER: wowmounts
       POSTGRES_PASSWORD: wowmounts
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"  # Bind to localhost only — prevent external access
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

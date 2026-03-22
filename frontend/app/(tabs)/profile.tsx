@@ -94,6 +94,39 @@ export default function ProfileScreen() {
             ))}</View>
           }
         </View>
+
+        {/* Settings */}
+        <View style={z.sec}>
+          <Text style={z.secT}>Settings</Text>
+          <View style={z.settingsList}>
+            <View style={z.settingRow}>
+              <Ionicons name="moon-outline" size={18} color={colors.text.secondary} />
+              <Text style={z.settingLabel}>Dark Theme</Text>
+              <Text style={z.settingValue}>Always On</Text>
+            </View>
+            <View style={z.settingRow}>
+              <Ionicons name="globe-outline" size={18} color={colors.text.secondary} />
+              <Text style={z.settingLabel}>Region</Text>
+              <Text style={z.settingValue}>US</Text>
+            </View>
+            <View style={z.settingRow}>
+              <Ionicons name="language-outline" size={18} color={colors.text.secondary} />
+              <Text style={z.settingLabel}>Locale</Text>
+              <Text style={z.settingValue}>English</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* About */}
+        <View style={z.sec}>
+          <Text style={z.secT}>About</Text>
+          <View style={z.aboutCard}>
+            <Text style={z.aboutName}>WoW Mount Tracker</Text>
+            <Text style={z.aboutVersion}>v1.1.0</Text>
+            <Text style={z.aboutCopy}>Inspired by SimpleArmory. Not affiliated with Blizzard Entertainment.</Text>
+            <Text style={z.aboutCopy}>Data sourced from the official Battle.net API.</Text>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -138,4 +171,12 @@ const z=StyleSheet.create({
   fActs:{alignItems:'flex-end',gap:spacing.sm},
   mainB:{backgroundColor:colors.gold.muted,paddingHorizontal:spacing.sm,paddingVertical:1,borderRadius:radii.sm,borderWidth:1,borderColor:colors.gold.dim},
   mainT:{fontSize:8,fontWeight:'800',color:colors.gold.primary,letterSpacing:1},
+  settingsList:{backgroundColor:colors.bg.secondary,borderRadius:radii.md,borderWidth:1,borderColor:colors.border.default,overflow:'hidden'},
+  settingRow:{flexDirection:'row',alignItems:'center',gap:spacing.md,paddingHorizontal:spacing.lg,paddingVertical:spacing.md,borderBottomWidth:1,borderBottomColor:colors.border.default},
+  settingLabel:{flex:1,...typography.body,fontSize:14},
+  settingValue:{...typography.caption,color:colors.text.tertiary},
+  aboutCard:{backgroundColor:colors.bg.secondary,borderRadius:radii.md,borderWidth:1,borderColor:colors.border.default,padding:spacing.lg,gap:spacing.xs,alignItems:'center'},
+  aboutName:{...typography.subheading,color:colors.gold.primary},
+  aboutVersion:{...typography.caption,color:colors.text.tertiary},
+  aboutCopy:{fontSize:10,color:colors.text.tertiary,textAlign:'center',lineHeight:15},
 });

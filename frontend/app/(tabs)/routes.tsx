@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, RefreshControl,
-  Modal, Alert, FlatList,
+  Modal, Alert, FlatList, Animated, Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radii, shadows } from '../../theme';
 import { Card } from '../../components';
-import api, { FarmTask, MountSummary } from '../../services/api';
+import api, { FarmTask, MountSummary, ResetInfo } from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
 
 interface Route { zone: string; tasks: FarmTask[]; completed: number; expansion?: string; order: number; }
@@ -25,6 +25,8 @@ interface RouteStep {
   taskId?: number;
   completed?: boolean;
   stepNum?: number;    // only for farm steps
+  resetType?: string;  // daily/weekly/none
+  sourceType?: string; // raid/dungeon/etc
 }
 
 // ── WoW geographic routing data ──────────────────────────────────────────────
@@ -121,6 +123,7 @@ const ZONE_GEO: { zone: string; expansion: string; order: number; type: string; 
 const ZONE_ORDER     = new Map(ZONE_GEO.map(z => [z.zone, z.order]));
 const ZONE_EXPANSION = new Map(ZONE_GEO.map(z => [z.zone, z.expansion]));
 const ZONE_NOTE      = new Map(ZONE_GEO.map(z => [z.zone, z.note]));
+const ZONE_TYPE      = new Map(ZONE_GEO.map(z => [z.zone, z.type]));
 
 // Expansion portal/travel hubs
 const EXPANSION_HUBS: Record<string, string> = {
@@ -150,7 +153,6 @@ const SOURCE_ZONES: Record<string, string> = {
 function getBestZone(sourceType: string) { return SOURCE_ZONES[sourceType] ?? 'Unknown'; }
 
 // Parse boss + difficulty notes from ZONE_GEO note string
-// Format: "Mount — Boss (Notes)" or multiple entries separated by " · "
 function extractBossInfo(zoneName: string): { boss?: string; notes?: string } {
   const note = ZONE_NOTE.get(zoneName);
   if (!note) return {};
@@ -166,9 +168,50 @@ function extractBossInfo(zoneName: string): { boss?: string; notes?: string } {
   };
 }
 
+// ── Reset timer helpers ──────────────────────────────────────────────────────
+
+function getNextDailyReset(): Date {
+  const now = new Date();
+  const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 0, 0));
+  if (now >= reset) reset.setUTCDate(reset.getUTCDate() + 1);
+  return reset;
+}
+
+function getNextWeeklyReset(): Date {
+  const now = new Date();
+  // US weekly reset: Tuesday 15:00 UTC
+  const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 0, 0));
+  const day = reset.getUTCDay(); // 0=Sun
+  const daysUntilTuesday = (2 - day + 7) % 7 || 7; // next Tuesday (not today if past reset)
+  reset.setUTCDate(reset.getUTCDate() + daysUntilTuesday);
+  // If today is Tuesday and we haven't passed 15:00 UTC yet, use today
+  if (day === 2 && now < reset) {
+    reset.setUTCDate(reset.getUTCDate() - 7 + 7); // already correct
+  }
+  // Actually simplify: find next Tuesday 15:00 UTC
+  const r = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 0, 0));
+  const d = r.getUTCDay();
+  let add = (2 - d + 7) % 7;
+  if (add === 0 && now >= r) add = 7;
+  r.setUTCDate(r.getUTCDate() + add);
+  return r;
+}
+
+function formatCountdown(target: Date): string {
+  const diff = target.getTime() - Date.now();
+  if (diff <= 0) return 'Now';
+  const hours = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remainHours = hours % 24;
+    return `${days}d ${remainHours}h`;
+  }
+  return `${hours}h ${mins}m`;
+}
+
 // Build sequential steps for a set of tasks (with travel steps inserted)
 function buildRouteSteps(tasksToShow: FarmTask[]): RouteStep[] {
-  // Group by zone, sorted by geographic order
   const zoneMap = new Map<string, FarmTask[]>();
   for (const t of tasksToShow) {
     const z = t.zone_name || 'Unknown';
@@ -187,7 +230,6 @@ function buildRouteSteps(tasksToShow: FarmTask[]): RouteStep[] {
     const expansion = ZONE_EXPANSION.get(zone) ?? 'Various';
     const zoneTasks = zoneMap.get(zone)!.sort((a, b) => a.sort_order - b.sort_order);
 
-    // Portal step at expansion boundary
     if (expansion !== 'Various' && expansion !== lastExpansion && EXPANSION_HUBS[expansion]) {
       steps.push({
         id: `portal-${expansion}`,
@@ -198,7 +240,6 @@ function buildRouteSteps(tasksToShow: FarmTask[]): RouteStep[] {
       lastExpansion = expansion;
     }
 
-    // Fly / travel to zone step
     if (expansion !== 'Various') {
       const typeEntry = ZONE_GEO.find(g => g.zone === zone);
       const verb = typeEntry?.type === 'world_boss' ? 'Travel to' : 'Fly to';
@@ -210,7 +251,6 @@ function buildRouteSteps(tasksToShow: FarmTask[]): RouteStep[] {
       });
     }
 
-    // Farm steps — one row per task
     const { boss, notes: bossNotes } = extractBossInfo(zone);
     for (const task of zoneTasks) {
       farmNum++;
@@ -225,6 +265,8 @@ function buildRouteSteps(tasksToShow: FarmTask[]): RouteStep[] {
         taskId: task.id,
         completed: task.completed,
         stepNum: farmNum,
+        resetType: task.reset_type,
+        sourceType: task.source_type,
       });
     }
   }
@@ -239,10 +281,11 @@ export default function RoutesScreen() {
   const [mounts, setMounts] = useState<MountSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [resetInfo, setResetInfo] = useState<ResetInfo | null>(null);
 
   // Run planner modal
   const [runTitle, setRunTitle] = useState('');
-  const [runZoneFilter, setRunZoneFilter] = useState<string | null>(null); // null=closed, specific zone, or 'ALL'
+  const [runZoneFilter, setRunZoneFilter] = useState<string | null>(null);
 
   // Auto-plan filter modal
   const [planModalVisible, setPlanModalVisible] = useState(false);
@@ -250,11 +293,26 @@ export default function RoutesScreen() {
   const [maxTasks, setMaxTasks] = useState(30);
   const [planning, setPlanning] = useState(false);
 
+  // New: hide completed toggle
+  const [hideCompleted, setHideCompleted] = useState(false);
+
+  // New: countdown timer tick
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // New: celebration animation
+  const celebrationScale = useRef(new Animated.Value(0)).current;
+  const celebrationOpacity = useRef(new Animated.Value(0)).current;
+
   const load = useCallback(async () => {
     try {
       const [t, m] = await Promise.all([api.getFarmTasks(), api.getMounts()]);
       setTasks(t.tasks);
       setMounts(m.mounts);
+      setResetInfo(t.reset_info);
     } catch {} finally { setLoading(false); }
   }, []);
   const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
@@ -279,22 +337,47 @@ export default function RoutesScreen() {
       .sort((a, b) => a.order - b.order);
   }, [tasks]);
 
-  // Steps for the currently open run modal (derived from tasks so toggles auto-update)
+  // Filter routes for display (hide completed toggle)
+  const displayRoutes = useMemo(() => {
+    if (!hideCompleted) return routes;
+    return routes.filter(r => r.completed < r.tasks.length);
+  }, [routes, hideCompleted]);
+
+  // Steps for the run modal — respects hideCompleted
   const activeSteps = useMemo((): RouteStep[] => {
     if (!runZoneFilter) return [];
-    const filtered = runZoneFilter === 'ALL' ? tasks : tasks.filter(t => t.zone_name === runZoneFilter);
+    let filtered = runZoneFilter === 'ALL' ? tasks : tasks.filter(t => t.zone_name === runZoneFilter);
+    if (hideCompleted) filtered = filtered.filter(t => !t.completed);
     return buildRouteSteps(filtered);
-  }, [runZoneFilter, tasks]);
+  }, [runZoneFilter, tasks, hideCompleted]);
 
   const activeFarmSteps = activeSteps.filter(s => s.kind === 'farm');
   const activeDoneCount = activeFarmSteps.filter(s => s.completed).length;
+  const allFarmStepsInRun = useMemo(() => {
+    if (!runZoneFilter) return [];
+    const filtered = runZoneFilter === 'ALL' ? tasks : tasks.filter(t => t.zone_name === runZoneFilter);
+    return buildRouteSteps(filtered).filter(s => s.kind === 'farm');
+  }, [runZoneFilter, tasks]);
+  const allRunDoneCount = allFarmStepsInRun.filter(s => s.completed).length;
 
   const totalT = tasks.length, totalD = tasks.filter(t => t.completed).length;
+
+  // Celebration trigger
+  useEffect(() => {
+    if (runZoneFilter && allFarmStepsInRun.length > 0 && allRunDoneCount === allFarmStepsInRun.length) {
+      celebrationScale.setValue(0);
+      celebrationOpacity.setValue(1);
+      Animated.sequence([
+        Animated.spring(celebrationScale, { toValue: 1, useNativeDriver: true, friction: 4 }),
+        Animated.timing(celebrationOpacity, { toValue: 1, duration: 3000, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [allRunDoneCount, allFarmStepsInRun.length, runZoneFilter]);
 
   const toggle = async (id: number) => {
     try {
       const r = await api.toggleFarmTask(id);
-      setTasks(p => p.map(t => t.id === id ? { ...t, completed: r.completed } : t));
+      setTasks(p => p.map(t => t.id === id ? { ...t, completed: r.completed, completed_at: r.completed ? new Date().toISOString() : undefined } : t));
     } catch {}
   };
 
@@ -316,6 +399,42 @@ export default function RoutesScreen() {
           onPress: async () => {
             for (const t of r.tasks) { try { await api.deleteFarmTask(t.id); } catch {} }
             setTasks(p => p.filter(t => !r.tasks.find(rt => rt.id === t.id)));
+          },
+        },
+      ]
+    );
+  };
+
+  // New: batch reset functions
+  const handleReset = async (filter: 'all' | 'daily' | 'weekly' | 'dungeons' | 'raids', label: string) => {
+    const completedCount = tasks.filter(t => {
+      if (!t.completed) return false;
+      if (filter === 'all') return true;
+      if (filter === 'daily') return t.reset_type === 'daily';
+      if (filter === 'weekly') return t.reset_type === 'weekly';
+      if (filter === 'dungeons') return t.source_type === 'dungeon';
+      if (filter === 'raids') return t.source_type === 'raid';
+      return false;
+    }).length;
+
+    if (completedCount === 0) {
+      Alert.alert('Nothing to Reset', `No completed ${label.toLowerCase()} to reset.`);
+      return;
+    }
+
+    Alert.alert(
+      `Reset ${label}?`,
+      `This will uncheck ${completedCount} completed task${completedCount !== 1 ? 's' : ''}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.resetFarmTasks(filter);
+              await load();
+            } catch {}
           },
         },
       ]
@@ -425,12 +544,21 @@ export default function RoutesScreen() {
           <Text style={[z.farmName, done && z.farmNameDone]} numberOfLines={1}>{step.label}</Text>
           {step.boss && <Text style={z.bossName} numberOfLines={1}>{step.boss}</Text>}
         </View>
+        {step.resetType && step.resetType !== 'none' && (
+          <View style={[z.resetBadge, step.resetType === 'weekly' ? z.resetWeekly : z.resetDaily]}>
+            <Text style={z.resetBadgeT}>{step.resetType === 'weekly' ? 'W' : 'D'}</Text>
+          </View>
+        )}
         {step.notes && (
           <View style={z.notesBadge}><Text style={z.notesBadgeT} numberOfLines={1}>{step.notes}</Text></View>
         )}
       </Pressable>
     );
-  }, [tasks]); // tasks in dep so re-renders on toggle
+  }, [tasks]);
+
+  const allDone = runZoneFilter && allFarmStepsInRun.length > 0 && allRunDoneCount === allFarmStepsInRun.length;
+  const dailyCountdown = formatCountdown(getNextDailyReset());
+  const weeklyCountdown = formatCountdown(getNextWeeklyReset());
 
   return (
     <SafeAreaView style={z.safe} edges={['top']}>
@@ -440,6 +568,20 @@ export default function RoutesScreen() {
       >
         <Text style={z.title}>Farm Planner</Text>
         <Text style={z.sub}>{selectedChar ? `Planning for ${selectedChar.display.split('-')[0]}` : 'Auto-plan routes or manage your farm runs'}</Text>
+
+        {/* Reset countdown timers */}
+        <View style={z.timerRow}>
+          <View style={z.timerCard}>
+            <Ionicons name="sunny-outline" size={14} color="#38BDF8" />
+            <Text style={z.timerLabel}>Daily</Text>
+            <Text style={z.timerValue}>{dailyCountdown}</Text>
+          </View>
+          <View style={z.timerCard}>
+            <Ionicons name="calendar-outline" size={14} color="#C084FC" />
+            <Text style={z.timerLabel}>Weekly</Text>
+            <Text style={z.timerValue}>{weeklyCountdown}</Text>
+          </View>
+        </View>
 
         <View style={z.btnRow}>
           <Pressable onPress={() => setPlanModalVisible(true)} style={({ pressed }) => [z.planBtn, pressed && { opacity: 0.85 }]} disabled={planning}>
@@ -457,6 +599,30 @@ export default function RoutesScreen() {
           )}
         </View>
 
+        {/* Action buttons row: hide completed + reset buttons */}
+        {tasks.length > 0 && (
+          <View style={z.actionRow}>
+            <Pressable onPress={() => setHideCompleted(h => !h)} style={[z.actionChip, hideCompleted && z.actionChipActive]}>
+              <Ionicons name={hideCompleted ? 'eye-off-outline' : 'eye-outline'} size={14} color={hideCompleted ? colors.gold.primary : colors.text.tertiary} />
+              <Text style={[z.actionChipT, hideCompleted && z.actionChipTActive]}>
+                {hideCompleted ? 'Show Done' : 'Hide Done'}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => handleReset('dungeons', 'Dungeons')} style={z.actionChip}>
+              <Ionicons name="key-outline" size={14} color="#38BDF8" />
+              <Text style={z.actionChipT}>Reset Dungeons</Text>
+            </Pressable>
+            <Pressable onPress={() => handleReset('raids', 'Raids')} style={z.actionChip}>
+              <Ionicons name="skull-outline" size={14} color="#C084FC" />
+              <Text style={z.actionChipT}>Reset Raids</Text>
+            </Pressable>
+            <Pressable onPress={() => handleReset('all', 'All Tasks')} style={z.actionChip}>
+              <Ionicons name="refresh-outline" size={14} color={colors.fire.dim} />
+              <Text style={z.actionChipT}>Reset All</Text>
+            </Pressable>
+          </View>
+        )}
+
         <Card variant="gold" style={z.oCard}>
           <View style={z.oRow}>
             <View style={z.oStat}><Text style={z.oNum}>{routes.length}</Text><Text style={z.oLabel}>ROUTES</Text></View>
@@ -467,15 +633,19 @@ export default function RoutesScreen() {
           </View>
         </Card>
 
-        {routes.length === 0 && !loading ? (
+        {displayRoutes.length === 0 && !loading ? (
           <View style={z.empty}>
             <Ionicons name="map-outline" size={48} color={colors.text.tertiary}/>
-            <Text style={z.emptyT}>No routes yet</Text>
-            <Text style={z.emptyS}>Tap "Auto-Plan" to generate a geographically-ordered farm route</Text>
+            <Text style={z.emptyT}>{hideCompleted && routes.length > 0 ? 'All routes complete!' : 'No routes yet'}</Text>
+            <Text style={z.emptyS}>
+              {hideCompleted && routes.length > 0
+                ? 'All your farm routes are done. Toggle "Show Done" to see them, or wait for reset.'
+                : 'Tap "Auto-Plan" to generate a geographically-ordered farm route'}
+            </Text>
           </View>
         ) : (
           <View style={z.rl}>
-            {routes.map(r => {
+            {displayRoutes.map(r => {
               const pct = Math.round(r.completed / r.tasks.length * 100);
               const done = pct === 100;
               const note = ZONE_NOTE.get(r.zone);
@@ -559,37 +729,80 @@ export default function RoutesScreen() {
           <View style={z.runHeader}>
             <View style={z.runHeaderLeft}>
               <Text style={z.runTitle} numberOfLines={1}>{runTitle}</Text>
-              <Text style={z.runProg}>{activeDoneCount} / {activeFarmSteps.length} done</Text>
+              <Text style={z.runProg}>
+                {allRunDoneCount} / {allFarmStepsInRun.length} done
+                {hideCompleted && activeFarmSteps.length < allFarmStepsInRun.length
+                  ? ` (showing ${activeFarmSteps.length})`
+                  : ''}
+              </Text>
             </View>
-            <Pressable onPress={() => setRunZoneFilter(null)} style={z.runClose}>
-              <Ionicons name="close" size={22} color={colors.text.primary}/>
-            </Pressable>
+            <View style={z.runHeaderRight}>
+              <Pressable onPress={() => setHideCompleted(h => !h)} style={z.runToggle}>
+                <Ionicons name={hideCompleted ? 'eye-off' : 'eye'} size={16} color={hideCompleted ? colors.gold.primary : colors.text.tertiary} />
+              </Pressable>
+              <Pressable onPress={() => setRunZoneFilter(null)} style={z.runClose}>
+                <Ionicons name="close" size={22} color={colors.text.primary}/>
+              </Pressable>
+            </View>
           </View>
 
           {/* Progress bar */}
-          {activeFarmSteps.length > 0 && (
+          {allFarmStepsInRun.length > 0 && (
             <View style={z.runProgBar}>
-              <View style={[z.runProgFill, { width: `${Math.round(activeDoneCount / activeFarmSteps.length * 100)}%` }]} />
+              <View style={[z.runProgFill, { width: `${Math.round(allRunDoneCount / allFarmStepsInRun.length * 100)}%` }]} />
             </View>
           )}
 
-          {/* Column headers */}
-          <View style={z.tableHeader}>
-            <View style={z.thCheck}/>
-            <View style={z.thNum}><Text style={z.thT}>#</Text></View>
-            <Text style={[z.thT, {flex:1}]}>MOUNT / STEP</Text>
-            <Text style={[z.thT, {width:90}]}>BOSS</Text>
-            <Text style={[z.thT, {width:72}]}>NOTES</Text>
+          {/* Reset timer bar in run mode */}
+          <View style={z.runTimerBar}>
+            <View style={z.runTimerItem}>
+              <Ionicons name="sunny-outline" size={12} color="#38BDF8" />
+              <Text style={z.runTimerT}>Daily: {dailyCountdown}</Text>
+            </View>
+            <View style={z.runTimerItem}>
+              <Ionicons name="calendar-outline" size={12} color="#C084FC" />
+              <Text style={z.runTimerT}>Weekly: {weeklyCountdown}</Text>
+            </View>
+            <Pressable onPress={() => handleReset('all', 'All Tasks')} style={z.runResetBtn}>
+              <Ionicons name="refresh" size={12} color={colors.fire.dim} />
+              <Text style={z.runResetBtnT}>Reset</Text>
+            </Pressable>
           </View>
 
-          {/* Steps list */}
-          <FlatList
-            data={activeSteps}
-            keyExtractor={s => s.id}
-            renderItem={renderStep}
-            contentContainerStyle={z.stepList}
-            ItemSeparatorComponent={() => <View style={z.sep}/>}
-          />
+          {/* Celebration overlay */}
+          {allDone && (
+            <Animated.View style={[z.celebrationBanner, { opacity: celebrationOpacity, transform: [{ scale: celebrationScale }] }]}>
+              <Ionicons name="trophy" size={32} color="#F5B800" />
+              <Text style={z.celebrationTitle}>Route Complete!</Text>
+              <Text style={z.celebrationSub}>All {allFarmStepsInRun.length} mounts farmed this reset. Check back after reset!</Text>
+              <View style={z.celebrationTimers}>
+                <Text style={z.celebrationTimer}>Daily reset: {dailyCountdown}</Text>
+                <Text style={z.celebrationTimer}>Weekly reset: {weeklyCountdown}</Text>
+              </View>
+            </Animated.View>
+          )}
+
+          {/* Column headers */}
+          {!allDone && (
+            <>
+              <View style={z.tableHeader}>
+                <View style={z.thCheck}/>
+                <View style={z.thNum}><Text style={z.thT}>#</Text></View>
+                <Text style={[z.thT, {flex:1}]}>MOUNT / STEP</Text>
+                <Text style={[z.thT, {width:28}]}></Text>
+                <Text style={[z.thT, {width:72}]}>NOTES</Text>
+              </View>
+
+              {/* Steps list */}
+              <FlatList
+                data={activeSteps}
+                keyExtractor={s => s.id}
+                renderItem={renderStep}
+                contentContainerStyle={z.stepList}
+                ItemSeparatorComponent={() => <View style={z.sep}/>}
+              />
+            </>
+          )}
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -601,11 +814,24 @@ const z = StyleSheet.create({
   content:{paddingHorizontal:spacing.lg,paddingTop:spacing.md,paddingBottom:100,gap:spacing.md},
   title:{...typography.display,color:colors.frost.primary},
   sub:{...typography.caption,color:colors.text.secondary},
+  // Timer row
+  timerRow:{flexDirection:'row',gap:spacing.sm},
+  timerCard:{flex:1,flexDirection:'row',alignItems:'center',gap:spacing.xs,backgroundColor:colors.bg.secondary,borderRadius:radii.md,paddingVertical:spacing.sm,paddingHorizontal:spacing.md,borderWidth:1,borderColor:colors.border.subtle},
+  timerLabel:{fontSize:11,fontWeight:'600',color:colors.text.tertiary},
+  timerValue:{fontSize:12,fontWeight:'700',color:colors.text.primary,marginLeft:'auto'},
+  // Button rows
   btnRow:{flexDirection:'row',gap:spacing.sm},
   planBtn:{flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:spacing.sm,backgroundColor:colors.gold.primary,borderRadius:radii.md,paddingVertical:13,...shadows.card},
   planBtnT:{fontSize:14,fontWeight:'700',color:colors.bg.primary},
   runAllBtn:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:spacing.sm,paddingHorizontal:spacing.xl,paddingVertical:13,borderRadius:radii.md,borderWidth:1,borderColor:colors.gold.dim,backgroundColor:colors.gold.muted},
   runAllBtnT:{fontSize:14,fontWeight:'700',color:colors.gold.primary},
+  // Action row (hide completed + resets)
+  actionRow:{flexDirection:'row',flexWrap:'wrap',gap:spacing.xs},
+  actionChip:{flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:spacing.sm,paddingVertical:6,borderRadius:radii.full,borderWidth:1,borderColor:colors.border.default,backgroundColor:colors.bg.tertiary},
+  actionChipActive:{borderColor:colors.gold.dim,backgroundColor:colors.gold.muted},
+  actionChipT:{fontSize:10,fontWeight:'600',color:colors.text.tertiary},
+  actionChipTActive:{color:colors.gold.primary},
+  // Overview card
   oCard:{padding:spacing.lg},
   oRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-around'},
   oStat:{alignItems:'center',gap:4},
@@ -651,11 +877,26 @@ const z = StyleSheet.create({
   runSafe:{flex:1,backgroundColor:colors.bg.primary},
   runHeader:{flexDirection:'row',alignItems:'center',paddingHorizontal:spacing.lg,paddingVertical:spacing.md,borderBottomWidth:1,borderBottomColor:colors.border.subtle},
   runHeaderLeft:{flex:1,gap:2},
+  runHeaderRight:{flexDirection:'row',alignItems:'center',gap:spacing.sm},
   runTitle:{...typography.heading,color:colors.gold.primary,fontSize:16},
   runProg:{...typography.caption,color:colors.text.tertiary},
+  runToggle:{width:36,height:36,borderRadius:18,backgroundColor:colors.bg.secondary,alignItems:'center',justifyContent:'center'},
   runClose:{width:36,height:36,borderRadius:18,backgroundColor:colors.bg.secondary,alignItems:'center',justifyContent:'center'},
   runProgBar:{height:3,backgroundColor:colors.bg.secondary,marginHorizontal:0},
   runProgFill:{height:3,backgroundColor:colors.gold.primary,borderRadius:0},
+  // Timer bar inside run modal
+  runTimerBar:{flexDirection:'row',alignItems:'center',paddingHorizontal:spacing.lg,paddingVertical:spacing.sm,backgroundColor:colors.bg.secondary,borderBottomWidth:1,borderBottomColor:colors.border.subtle,gap:spacing.md},
+  runTimerItem:{flexDirection:'row',alignItems:'center',gap:4},
+  runTimerT:{fontSize:10,fontWeight:'600',color:colors.text.tertiary},
+  runResetBtn:{flexDirection:'row',alignItems:'center',gap:4,marginLeft:'auto',paddingHorizontal:spacing.sm,paddingVertical:4,borderRadius:radii.sm,borderWidth:1,borderColor:colors.border.default},
+  runResetBtnT:{fontSize:10,fontWeight:'600',color:colors.fire.dim},
+  // Celebration
+  celebrationBanner:{alignItems:'center',justifyContent:'center',paddingVertical:60,paddingHorizontal:spacing.xl,gap:spacing.md},
+  celebrationTitle:{fontSize:24,fontWeight:'800',color:'#F5B800',textAlign:'center'},
+  celebrationSub:{...typography.caption,color:colors.text.secondary,textAlign:'center'},
+  celebrationTimers:{flexDirection:'row',gap:spacing.xl,marginTop:spacing.md},
+  celebrationTimer:{fontSize:12,fontWeight:'600',color:colors.text.tertiary},
+  // Table
   tableHeader:{flexDirection:'row',alignItems:'center',paddingHorizontal:spacing.lg,paddingVertical:spacing.sm,backgroundColor:colors.bg.secondary,borderBottomWidth:1,borderBottomColor:colors.border.subtle},
   thCheck:{width:32},
   thNum:{width:28},
@@ -680,6 +921,11 @@ const z = StyleSheet.create({
   farmName:{fontSize:13,fontWeight:'600',color:colors.text.primary},
   farmNameDone:{color:colors.text.tertiary,textDecorationLine:'line-through'},
   bossName:{fontSize:10,color:colors.text.tertiary},
+  // Reset type badges
+  resetBadge:{width:20,height:20,borderRadius:10,alignItems:'center',justifyContent:'center'},
+  resetDaily:{backgroundColor:'#38BDF8'+'20'},
+  resetWeekly:{backgroundColor:'#C084FC'+'20'},
+  resetBadgeT:{fontSize:9,fontWeight:'800',color:colors.text.tertiary},
   notesBadge:{paddingHorizontal:spacing.sm,paddingVertical:2,borderRadius:radii.sm,backgroundColor:colors.bg.secondary,borderWidth:1,borderColor:colors.border.subtle,maxWidth:80},
   notesBadgeT:{fontSize:9,fontWeight:'700',color:colors.text.tertiary,textAlign:'center'},
 });

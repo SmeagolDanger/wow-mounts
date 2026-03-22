@@ -119,7 +119,18 @@ def _build_error_deep_link(error: str) -> str:
 def _build_fallback_html(deep_link: str, battletag: str = "") -> str:
     """HTML fallback page that attempts the deep link and shows a manual option.
     Covers the case where the deep link doesn't auto-open (desktop browser, etc).
+
+    SECURITY: All user-controlled values are HTML-escaped to prevent XSS.
+    The deep_link is validated to only allow known schemes.
     """
+    import html
+
+    # Sanitize: only allow wowmounts:// or exp:// scheme deep links
+    safe_link = deep_link if deep_link.startswith(("wowmounts://", "exp://")) else "#"
+    safe_battletag = html.escape(battletag, quote=True)
+    # Also escape for JS string context (prevent breaking out of quotes)
+    js_safe_link = safe_link.replace("\\", "\\\\").replace('"', '\\"').replace("<", "\\x3c").replace(">", "\\x3e")
+
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -153,12 +164,12 @@ def _build_fallback_html(deep_link: str, battletag: str = "") -> str:
 <body>
     <div class="card">
         <h1>Login Successful!</h1>
-        <p>Welcome, <span class="tag">{battletag}</span></p>
+        <p>Welcome, <span class="tag">{safe_battletag}</span></p>
         <p>Redirecting to the app...</p>
-        <a class="btn" href="{deep_link}">Open WoW Mount Tracker</a>
+        <a class="btn" href="{html.escape(safe_link, quote=True)}">Open WoW Mount Tracker</a>
         <p class="hint">If the app didn't open automatically, tap the button above.</p>
     </div>
-    <script>window.location.href = "{deep_link}";</script>
+    <script>window.location.href = "{js_safe_link}";</script>
 </body>
 </html>"""
 
